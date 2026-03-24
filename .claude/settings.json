@@ -1,0 +1,48 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "filepath=$(echo \"$TOOL_INPUT\" | grep -o '\"file_path\":\\s*\"[^\"]*\"' | head -1 | sed 's/.*\"\\([^\"]*\\)\"/\\1/'); if echo \"$filepath\" | grep -qE '\\.(ts|tsx)$'; then echo '--- TypeCheck ---'; npx tsc --noEmit 2>&1 | head -20; fi",
+            "timeout": 30000
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "if echo \"$TOOL_INPUT\" | grep -qE 'rm\\s+-rf'; then echo 'BLOCKED: rm -rf is not allowed. Use targeted file deletion instead.'; exit 2; fi"
+          }
+        ]
+      }
+    ]
+  },
+  "permissions": {
+    "allow": [
+      "Bash(pnpm *)",
+      "Bash(npx *)",
+      "Bash(git *)",
+      "Bash(curl *)",
+      "Bash(node *)",
+      "Bash(python3 *)",
+      "Bash(ls *)",
+      "Bash(cat *)",
+      "Bash(mkdir *)",
+      "Bash(cp *)",
+      "Bash(mv *)"
+    ],
+    "deny": [
+      "Bash(rm -rf *)",
+      "Bash(*deploy*)",
+      "Bash(*kubectl*)",
+      "Bash(*terraform apply*)"
+    ]
+  }
+}

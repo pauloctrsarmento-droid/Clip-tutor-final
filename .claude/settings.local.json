@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Edit(/.claude/skills/code-scaffolder/**)",
+      "Edit(/.claude/skills/pr-prep/**)",
+      "Edit(/.claude/skills/debug-detective/**)",
+      "Edit(/.claude/skills/refactor-safe/**)"
+    ],
+    "additionalDirectories": [
+      "C:\\Users\\sarma\\.claude"
+    ]
+  }
+}
