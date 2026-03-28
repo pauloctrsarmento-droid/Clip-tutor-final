@@ -1,0 +1,57 @@
+# Dependencies
+node_modules/
+web/node_modules/
+
+# Next.js
+web/.next/
+web/out/
+
+# Env files (secrets)
+.env*
+web/.env*
+
+# Data files (too large for git)
+data/
+
+# Diagrams (large PNGs)
+# data/diagrams/
+
+# Python caches
+__pycache__/
+*.pyc
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# Playwright MCP
+.playwright-mcp/
+
+# Test screenshots
+*.png
+
+# Temp files
+*.tmp
+*.log
+
+# Skills lock
+skills-lock.json
+
+# Claude skills (large CSV data files)
+.claude/skills/
+.agents/
+
+# HTML test files
+*.html
+
+# Mockup/comparison files
+compare-*
+mockup-*
+spotcheck-*
+maths-ref*
+diagram-gallery*
+diagram-test*
