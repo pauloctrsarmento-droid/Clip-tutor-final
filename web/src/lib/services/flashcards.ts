@@ -49,6 +49,17 @@ export async function getFlashcardDeck(options: {
   if (error) throw error;
   if (!data) return [];
 
+  // Get facts already seen in flashcard mode
+  const { data: exposedFacts } = await supabaseAdmin
+    .from("question_exposure")
+    .select("question_id")
+    .eq("student_id", studentId)
+    .eq("mode", "flashcard");
+
+  const exposedIds = new Set(
+    (exposedFacts ?? []).map((r) => r.question_id as string)
+  );
+
   // Transform and sort: never-seen first, then lowest mastery, then stalest
   const now = Date.now();
   const sevenDaysMs = 7 * 24 * 60 * 60 * 1000;
@@ -85,9 +96,10 @@ export async function getFlashcardDeck(options: {
     };
   });
 
-  // Sort and take limit — exclude already mastered (>= 0.8) unless we don't have enough
-  const unmastered = cards.filter((c) => c._sortKey < 0.8);
-  const pool = unmastered.length >= limit ? unmastered : cards;
+  // Filter out already-seen facts, then exclude mastered (>= 0.8)
+  const unseen = cards.filter((c) => !exposedIds.has(c.fact_id));
+  const unmastered = (unseen.length >= limit ? unseen : cards).filter((c) => c._sortKey < 0.8);
+  const pool = unmastered.length >= limit ? unmastered : (unseen.length >= limit ? unseen : cards);
 
   pool.sort((a, b) => a._sortKey - b._sortKey);
 

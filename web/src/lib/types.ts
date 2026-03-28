@@ -56,7 +56,11 @@ export interface ExamQuestion {
 // Study Sessions
 // ============================================================
 
-export type SessionType = "flashcard" | "quiz" | "review";
+export type SessionType = "flashcard" | "quiz" | "review" | "chat_tutor";
+
+export type BlockPhase = "intro" | "explanation" | "quiz" | "transition";
+
+export type SessionStatus = "active" | "paused" | "completed" | "interrupted";
 
 export interface StudySession {
   id: string;
@@ -68,6 +72,60 @@ export interface StudySession {
   ended_at: string | null;
   total_cards: number;
   correct_count: number;
+  mood: string | null;
+  running_summary: string | null;
+  current_block_index: number;
+  block_phase: BlockPhase;
+  embedded_session_id: string | null;
+  status: SessionStatus;
+}
+
+// ============================================================
+// Chat Tutor
+// ============================================================
+
+export type Mood = "unmotivated" | "normal" | "good" | "motivated";
+
+export interface ChatMessage {
+  id: string;
+  session_id: string;
+  role: "user" | "assistant" | "system";
+  content: string;
+  images: string[];
+  action: TutorAction | null;
+  internal: TutorInternal | null;
+  created_at: string;
+}
+
+/** Actions the tutor can emit to control the activity panel. */
+export type TutorAction =
+  | { type: "launch_quiz"; config: { topic_id: string; num_questions: number; question_types: string[] } }
+  | { type: "launch_flashcards"; config: { topic_id: string; count: number } }
+  | { type: "show_content"; config: { title: string; content: string; diagram_url?: string } }
+  | { type: "clear_panel"; config: Record<string, never> }
+  | { type: "end_block"; config: { completed_block_index: number; next_subject?: string } }
+  | { type: "end_session"; config: { reason: "completed" } };
+
+/** Internal metadata for session state tracking. */
+export interface TutorInternal {
+  current_phase: BlockPhase;
+  time_elapsed_minutes: number;
+  block_progress: string;
+}
+
+export interface TutorMemory {
+  id: string;
+  student_id: string;
+  subject_code: string;
+  session_id: string | null;
+  summary: string;
+  key_points: {
+    struggles: string[];
+    wins: string[];
+    effective_methods: string[];
+    mood_note: string;
+  } | null;
+  created_at: string;
 }
 
 // ============================================================

@@ -22,9 +22,11 @@ interface HeroCtaProps {
   overview: DashboardOverview;
   exams: ExamCalendarEntry[];
   onStartSession: () => void;
+  pausedSessionId?: string | null;
+  onResumeSession?: () => void;
 }
 
-export function HeroCta({ blocks, overview, exams, onStartSession }: HeroCtaProps) {
+export function HeroCta({ blocks, overview, exams, onStartSession, pausedSessionId, onResumeSession }: HeroCtaProps) {
   const allDone = blocks.length > 0 && blocks.every((b) => b.status === "done");
   const noBlocks = blocks.length === 0;
   const totalHours = blocks.reduce((sum, b) => sum + b.planned_hours, 0);
@@ -138,6 +140,33 @@ export function HeroCta({ blocks, overview, exams, onStartSession }: HeroCtaProp
       transition={{ duration: 0.5, delay: 0.1 }}
       className="space-y-2"
     >
+      {/* Resume paused session */}
+      {pausedSessionId && onResumeSession && (
+        <button
+          onClick={onResumeSession}
+          className={cn(
+            "w-full rounded-2xl bg-gradient-to-r from-amber-500 to-amber-600",
+            "p-4 text-left transition-all duration-200 mb-2",
+            "hover:shadow-xl hover:shadow-amber-500/20 hover:scale-[1.01]",
+            "active:scale-[0.99] cursor-pointer group"
+          )}
+        >
+          <div className="flex items-center justify-between">
+            <div>
+              <span className="font-heading text-xl sm:text-2xl font-bold text-white">
+                Continue session
+              </span>
+              <p className="text-amber-100/70 text-sm mt-1">
+                Pick up where you left off
+              </p>
+            </div>
+            <div className="w-11 h-11 rounded-2xl bg-white/20 flex items-center justify-center group-hover:bg-white/30 transition-colors">
+              <Play className="w-6 h-6 text-white fill-white" />
+            </div>
+          </div>
+        </button>
+      )}
+
       {/* Main CTA button */}
       <button
         onClick={onStartSession}
@@ -151,7 +180,7 @@ export function HeroCta({ blocks, overview, exams, onStartSession }: HeroCtaProp
         <div className="flex items-center justify-between">
           <div>
             <span className="font-heading text-xl sm:text-2xl font-bold text-white">
-              Start today's session
+              {pausedSessionId ? "Start new session" : "Start today's session"}
             </span>
             <p className="text-emerald-100/70 text-sm mt-1">
               ~{totalHours}h of planned study

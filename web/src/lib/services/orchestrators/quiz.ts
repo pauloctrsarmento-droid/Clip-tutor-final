@@ -67,7 +67,18 @@ export async function startQuizSession(options: {
     studentId
   );
 
-  // Get recently answered correctly (last 7 days)
+  // Get questions already seen in quiz mode (question_exposure)
+  const { data: exposedQuiz } = await supabaseAdmin
+    .from("question_exposure")
+    .select("question_id")
+    .eq("student_id", studentId)
+    .eq("mode", "quiz");
+
+  const exposedIds = new Set(
+    (exposedQuiz ?? []).map((r) => r.question_id as string)
+  );
+
+  // Also exclude recently answered correctly (last 7 days) as extra safety
   const sevenDaysAgo = new Date();
   sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
 
@@ -106,10 +117,11 @@ export async function startQuizSession(options: {
   const { data: allQuestions, error } = await query.limit(count * 4);
   if (error) throw error;
 
-  // Filter, prioritize, shuffle
+  // Filter out seen + recently correct questions
   const available = (allQuestions ?? []).filter(
-    (q) => !recentIds.has(q.id as string)
+    (q) => !exposedIds.has(q.id as string) && !recentIds.has(q.id as string)
   );
+  // Fall back to all questions if not enough unseen (she's done them all!)
   const pool = available.length >= count ? available : (allQuestions ?? []);
 
   // Shuffle
@@ -166,6 +178,19 @@ export async function startQuizSession(options: {
       paper_id: paperId,
     };
   });
+
+  // Record exposure for selected questions
+  if (questions.length > 0) {
+    const exposureRows = questions.map((q) => ({
+      student_id: studentId,
+      question_id: q.id,
+      mode: "quiz" as const,
+      session_id: session.id,
+    }));
+    await supabaseAdmin
+      .from("question_exposure")
+      .upsert(exposureRows, { onConflict: "student_id,question_id,mode" });
+  }
 
   return { session_id: session.id, questions };
 }

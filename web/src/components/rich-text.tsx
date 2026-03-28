@@ -23,7 +23,7 @@ function renderLatex(latex: string, displayMode: boolean): string {
   }
 }
 
-function processInline(text: string): string {
+export function processInline(text: string): string {
   // Block LaTeX
   let r = text.replace(/\$\$([^$]+?)\$\$/g, (_, l: string) =>
     `<div class="my-2 text-center">${renderLatex(l.trim(), true)}</div>`

@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { fetchSubjects, fetchExamPapers } from "@/lib/api";
+import { fetchSubjects, fetchExamPapers, fetchPaperExposure } from "@/lib/api";
+import type { PaperExposure } from "@/lib/api";
 import { getSubjectMeta } from "@/lib/subject-meta";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
@@ -55,6 +56,7 @@ export function ExamPaperPicker({ onSelect }: ExamPaperPickerProps) {
   const [selectedSubjectCode, setSelectedSubjectCode] = useState<string | null>(null);
   const [papers, setPapers] = useState<ExamPaper[]>([]);
   const [papersLoading, setPapersLoading] = useState(false);
+  const [exposure, setExposure] = useState<Map<string, PaperExposure>>(new Map());
 
   const selectedSubject = subjects.find((s) => s.code === selectedSubjectCode) ?? null;
 
@@ -70,7 +72,10 @@ export function ExamPaperPicker({ onSelect }: ExamPaperPickerProps) {
     setSelectedSubjectCode(code);
     setPapersLoading(true);
     try {
-      const data: ExamPaper[] = await fetchExamPapers(code);
+      const [data, exposureData] = await Promise.all([
+        fetchExamPapers(code) as Promise<ExamPaper[]>,
+        fetchPaperExposure(code),
+      ]);
       const filtered = data.filter(
         (p) => !p.component_type || !EXCLUDED_TYPES.includes(p.component_type)
       );
@@ -81,6 +86,13 @@ export function ExamPaperPicker({ onSelect }: ExamPaperPickerProps) {
         return a.variant.localeCompare(b.variant);
       });
       setPapers(filtered);
+
+      // Build exposure lookup
+      const expMap = new Map<string, PaperExposure>();
+      for (const e of exposureData) {
+        expMap.set(e.paper_id, e);
+      }
+      setExposure(expMap);
     } finally {
       setPapersLoading(false);
     }
@@ -202,41 +214,72 @@ export function ExamPaperPicker({ onSelect }: ExamPaperPickerProps) {
               </p>
             ) : (
               <div className="space-y-2">
-                {papers.map((paper, i) => (
-                  <motion.button
-                    key={paper.id}
-                    initial={{ opacity: 0, y: 8 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: i * 0.03 }}
-                    onClick={() => onSelect(paper)}
-                    className={cn(
-                      "w-full text-left px-4 py-3 rounded-xl cursor-pointer",
-                      "bg-card border border-border",
-                      "hover:border-primary/20 hover:bg-secondary",
-                      "active:scale-[0.99]",
-                      "transition-all duration-200",
-                      "flex items-center gap-3"
-                    )}
-                  >
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium truncate">
-                        {formatSession(paper.session)}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        Variant {paper.variant}
-                      </p>
-                    </div>
-                    {paper.component_type && (
-                      <Badge variant="secondary" className="text-[10px] shrink-0">
-                        {formatComponentType(paper.component_type)}
-                      </Badge>
-                    )}
-                    <span className="text-xs tabular-nums text-muted-foreground shrink-0">
-                      {paper.total_marks} marks
-                    </span>
-                    <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />
-                  </motion.button>
-                ))}
+                {papers.map((paper, i) => {
+                  const exp = exposure.get(paper.id);
+                  const seenCount = exp?.seen_in_quiz ?? 0;
+                  const totalQ = exp?.total_questions ?? 0;
+                  const isVirgin = seenCount === 0;
+
+                  return (
+                    <motion.button
+                      key={paper.id}
+                      initial={{ opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: i * 0.03 }}
+                      onClick={() => onSelect(paper)}
+                      className={cn(
+                        "w-full text-left px-4 py-3 rounded-xl cursor-pointer",
+                        "bg-card border",
+                        isVirgin
+                          ? "border-emerald-500/20 hover:border-emerald-500/40"
+                          : "border-border hover:border-primary/20",
+                        "hover:bg-secondary",
+                        "active:scale-[0.99]",
+                        "transition-all duration-200",
+                        "flex items-center gap-3"
+                      )}
+                    >
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium truncate">
+                          {formatSession(paper.session)}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          Variant {paper.variant}
+                        </p>
+                      </div>
+                      {paper.component_type && (
+                        <Badge variant="secondary" className="text-[10px] shrink-0">
+                          {formatComponentType(paper.component_type)}
+                        </Badge>
+                      )}
+                      {/* Exposure indicator */}
+                      {totalQ > 0 && seenCount > 0 ? (
+                        <Badge
+                          variant="secondary"
+                          className={cn(
+                            "text-[10px] shrink-0",
+                            seenCount >= totalQ
+                              ? "bg-amber-500/10 text-amber-400 border-amber-500/20"
+                              : "bg-muted text-muted-foreground"
+                          )}
+                        >
+                          {seenCount}/{totalQ} seen
+                        </Badge>
+                      ) : totalQ > 0 ? (
+                        <Badge
+                          variant="secondary"
+                          className="text-[10px] shrink-0 bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
+                        >
+                          Fresh
+                        </Badge>
+                      ) : null}
+                      <span className="text-xs tabular-nums text-muted-foreground shrink-0">
+                        {paper.total_marks} marks
+                      </span>
+                      <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />
+                    </motion.button>
+                  );
+                })}
               </div>
             )}
           </motion.div>

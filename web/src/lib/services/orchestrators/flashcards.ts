@@ -69,6 +69,19 @@ export async function startFlashcardSession(options: StartOptions): Promise<Star
     return { ...card, question: card.fact_text, question_id: null };
   });
 
+  // Record exposure for served facts
+  if (cardsWithQuestions.length > 0) {
+    const exposureRows = cardsWithQuestions.map((c) => ({
+      student_id: studentId,
+      question_id: c.fact_id,
+      mode: "flashcard" as const,
+      session_id: session.id,
+    }));
+    await supabaseAdmin
+      .from("question_exposure")
+      .upsert(exposureRows, { onConflict: "student_id,question_id,mode" });
+  }
+
   return { session_id: session.id, cards: cardsWithQuestions };
 }
 

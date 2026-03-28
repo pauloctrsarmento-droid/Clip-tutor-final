@@ -455,6 +455,19 @@ export async function fetchExamPapers(subjectCode?: string) {
   return res.json();
 }
 
+export interface PaperExposure {
+  paper_id: string;
+  total_questions: number;
+  seen_in_quiz: number;
+}
+
+export async function fetchPaperExposure(subjectCode?: string): Promise<PaperExposure[]> {
+  const params = subjectCode ? `?subject_code=${subjectCode}` : "";
+  const res = await fetch(`${BASE}/api/papers/exposure${params}`);
+  if (!res.ok) throw new Error("Failed to fetch paper exposure");
+  return res.json();
+}
+
 export async function startExam(examPaperId: string) {
   const res = await fetch(`${BASE}/api/exam/start`, {
     method: "POST",
@@ -556,4 +569,86 @@ export async function fetchSubjectMasteryDrillDown(subjectCode: string) {
       }>;
     }>;
   }>;
+}
+
+// ============================================================
+// Chat Tutor Session
+// ============================================================
+
+export async function startChatSession(mood: string) {
+  const res = await fetch(`${BASE}/api/session/start`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ mood }),
+  });
+  if (!res.ok) throw new Error("Failed to start session");
+  return res.json() as Promise<{
+    session_id: string;
+    blocks: Array<{ id: string; subject_code: string; title: string; planned_hours: number; status: string }>;
+    tutor_greeting: string;
+  }>;
+}
+
+/**
+ * Send a message and get a streaming Response back.
+ * The caller should use parseSessionStream() to consume it.
+ */
+export async function sendSessionMessage(
+  sessionId: string,
+  message: string,
+  images?: string[],
+): Promise<Response> {
+  const res = await fetch(`${BASE}/api/session/message`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ session_id: sessionId, message, images }),
+  });
+  if (!res.ok) throw new Error("Failed to send message");
+  return res;
+}
+
+export async function pauseChatSession(sessionId: string) {
+  const res = await fetch(`${BASE}/api/session/pause`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ session_id: sessionId }),
+  });
+  if (!res.ok) throw new Error("Failed to pause session");
+  return res.json() as Promise<{ ok: true }>;
+}
+
+export async function resumeChatSession(sessionId: string) {
+  const res = await fetch(`${BASE}/api/session/resume`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ session_id: sessionId }),
+  });
+  if (!res.ok) throw new Error("Failed to resume session");
+  return res.json() as Promise<{
+    session_id: string;
+    current_block_index: number;
+    block_phase: string;
+    history: Array<{ id: string; role: string; content: string; images: string[]; created_at: string }>;
+    tutor_greeting: string;
+  }>;
+}
+
+export async function endChatSession(sessionId: string, reason: "completed" | "interrupted") {
+  const res = await fetch(`${BASE}/api/session/end`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ session_id: sessionId, reason }),
+  });
+  if (!res.ok) throw new Error("Failed to end session");
+  return res.json() as Promise<{ blocks_completed: number; blocks_total: number }>;
+}
+
+export async function sendQuizResult(sessionId: string, correct: number, total: number) {
+  const res = await fetch(`${BASE}/api/session/quiz-result`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ session_id: sessionId, correct, total }),
+  });
+  if (!res.ok) throw new Error("Failed to send quiz result");
+  return res.json() as Promise<{ tutor_comment: string }>;
 }
