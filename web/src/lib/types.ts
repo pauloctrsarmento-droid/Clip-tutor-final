@@ -102,6 +102,7 @@ export type TutorAction =
   | { type: "launch_quiz"; config: { topic_id: string; num_questions: number; question_types: string[] } }
   | { type: "launch_flashcards"; config: { topic_id: string; count: number } }
   | { type: "show_content"; config: { title: string; content: string; diagram_url?: string } }
+  | { type: "show_diagram"; config: { title: string; diagram_type: "mermaid" | "dalle"; mermaid_code?: string; dalle_prompt?: string } }
   | { type: "clear_panel"; config: Record<string, never> }
   | { type: "end_block"; config: { completed_block_index: number; next_subject?: string } }
   | { type: "end_session"; config: { reason: "completed" } };

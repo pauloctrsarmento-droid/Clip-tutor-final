@@ -1,5 +1,6 @@
 import { supabaseAdmin } from "@/lib/supabase-server";
-import { callOpenAIStream } from "@/lib/openai";
+import { callOpenAI, callOpenAIStream } from "@/lib/openai";
+import { generateDiagramImage } from "@/lib/dalle";
 import type { VisionContentPart, ChatTurnMessage } from "@/lib/openai";
 import { getPrompt } from "@/lib/services/prompts";
 import { getTodayPlan } from "@/lib/services/study-plan";
@@ -184,6 +185,10 @@ export async function sendMessage(
     maxTokens: 1024,
   });
 
+  // Variables populated by flush(), used by afterStream()
+  let parsedAction: TutorAction | null = null;
+  let parsedInternal: TutorInternal | null = null;
+
   // Collect full response and filter out LLM-generated delimiters from stream.
   // The backend will append clean JSON at the end instead.
   let fullResponse = "";
@@ -224,6 +229,11 @@ export async function sendMessage(
         action = extractActionByRegex(fullResponse);
       }
 
+      // For show_diagram with mermaid: mark it for resolution in afterStream
+      // For now, send the action as-is — afterStream will resolve it
+      parsedAction = action;
+      parsedInternal = internal;
+
       const meta: Record<string, unknown> = {};
       if (action) meta.action = action;
       if (internal) meta.internal = internal;
@@ -239,10 +249,17 @@ export async function sendMessage(
 
   // After-stream processing (called by the API route after stream completes)
   const afterStream = async () => {
-    // Parse delimiters from full response
-    const { text, action, internal } = parseResponse(fullResponse);
+    // Use parsed values from flush(), or re-parse as fallback
+    const { text } = parseResponse(fullResponse);
+    let action = parsedAction;
+    const internal = parsedInternal;
 
-    // Save assistant message
+    // Resolve diagrams (Mermaid code generation, DALL-E image generation)
+    if (action) {
+      action = await resolveDiagramAction(action, fullResponse);
+    }
+
+    // Save assistant message with resolved action
     await supabaseAdmin.from("chat_messages").insert({
       session_id: sessionId,
       role: "assistant",
@@ -668,10 +685,94 @@ function parseResponse(raw: string): {
 }
 
 /**
+ * Resolve diagram actions server-side:
+ * - Mermaid: if mermaid_code is missing/broken, generate it via a quick LLM call
+ * - DALL-E: generate the image and convert to show_content with diagram_url
+ * - show_content with "Content loading...": try to generate a Mermaid diagram from the title
+ */
+async function resolveDiagramAction(action: TutorAction, fullResponse: string): Promise<TutorAction> {
+  if (action.type === "show_diagram") {
+    if (action.config.diagram_type === "mermaid") {
+      // If mermaid_code is missing or looks broken, generate it
+      const code = action.config.mermaid_code ?? "";
+      if (!code || !code.includes("graph") && !code.includes("flowchart") && !code.includes("sequenceDiagram")) {
+        const generated = await generateMermaidCode(action.config.title, fullResponse);
+        return { type: "show_diagram", config: { ...action.config, mermaid_code: generated } };
+      }
+    }
+    if (action.config.diagram_type === "dalle" && action.config.dalle_prompt) {
+      try {
+        const imageUrl = await generateDiagramImage(action.config.dalle_prompt);
+        return { type: "show_content", config: { title: action.config.title, content: "", diagram_url: imageUrl } };
+      } catch {
+        return { type: "show_content", config: { title: action.config.title, content: `Diagram: ${action.config.dalle_prompt}` } };
+      }
+    }
+  }
+
+  // If show_content has "Content loading..." or "Generating diagram...", try to make a Mermaid diagram
+  if (action.type === "show_content" && (action.config.content === "Content loading..." || action.config.content === "Generating diagram...")) {
+    const generated = await generateMermaidCode(action.config.title, fullResponse);
+    return { type: "show_diagram", config: { title: action.config.title, diagram_type: "mermaid", mermaid_code: generated } };
+  }
+
+  return action;
+}
+
+/** Quick non-streaming LLM call to generate valid Mermaid code from a title/context */
+async function generateMermaidCode(title: string, context: string): Promise<string> {
+  try {
+    const result = await callOpenAI({
+      system: `You generate Mermaid.js diagram code. Return ONLY valid Mermaid code, nothing else. No markdown code fences. No explanation. Just the Mermaid syntax starting with graph, flowchart, sequenceDiagram, classDiagram, or pie.`,
+      user: `Generate a Mermaid diagram for: "${title}"\n\nContext from the tutoring conversation:\n${context.slice(-500)}`,
+      maxTokens: 500,
+      model: "gpt-4o-mini",
+    });
+    // Clean up: remove code fences if present
+    return result
+      .replace(/```mermaid\n?/g, "")
+      .replace(/```\n?/g, "")
+      .trim();
+  } catch {
+    return `graph TD\n  A[${title}]\n  A --> B[Could not generate diagram]`;
+  }
+}
+
+/**
  * Last-resort regex extraction when JSON parsing fails completely.
  * Looks for action type keywords in the raw LLM output and reconstructs a minimal action.
  */
 function extractActionByRegex(raw: string): TutorAction | null {
+  // Look for show_diagram (mermaid or dalle)
+  if (raw.match(/show_diagram/i)) {
+    const titleMatch = raw.match(/["']title["']\s*:\s*["']([^"']+)["']/);
+    const title = titleMatch?.[1] ?? "Diagram";
+
+    // Check for mermaid code
+    const mermaidMatch = raw.match(/["']mermaid_code["']\s*:\s*["']([\s\S]*?)(?:["']\s*[},]|$)/);
+    if (mermaidMatch) {
+      const code = mermaidMatch[1]?.replace(/\\n/g, "\n")?.replace(/\\"/g, '"') ?? "";
+      return { type: "show_diagram", config: { title, diagram_type: "mermaid", mermaid_code: code } };
+    }
+
+    // Check for dalle prompt
+    const dalleMatch = raw.match(/["']dalle_prompt["']\s*:\s*["']([^"']+)["']/);
+    if (dalleMatch) {
+      return { type: "show_diagram", config: { title, diagram_type: "dalle", dalle_prompt: dalleMatch[1] } };
+    }
+
+    // Fallback: check diagram_type
+    if (raw.match(/mermaid/i)) {
+      // Try to find any graph/flowchart code
+      const codeMatch = raw.match(/(graph\s+(?:LR|TD|TB|BT|RL)[\s\S]*?)(?:["'}\]]|$)/);
+      return { type: "show_diagram", config: { title, diagram_type: "mermaid", mermaid_code: codeMatch?.[1] ?? "graph LR\n  A[Error] --> B[Could not parse diagram]" } };
+    }
+    if (raw.match(/dalle/i)) {
+      const promptMatch = raw.match(/["'](?:prompt|dalle_prompt)["']\s*:\s*["']([^"']+)["']/);
+      return { type: "show_diagram", config: { title, diagram_type: "dalle", dalle_prompt: promptMatch?.[1] ?? title } };
+    }
+  }
+
   // Look for show_content with title
   const showContentMatch = raw.match(/show_content/i);
   if (showContentMatch) {
@@ -819,6 +920,32 @@ async function handleAction(
         .from("study_sessions")
         .update({ block_phase: "quiz" })
         .eq("id", sessionId);
+      break;
+    }
+
+    case "show_diagram": {
+      // For DALL-E: generate image and convert action to show_content with URL
+      if (action.config.diagram_type === "dalle" && action.config.dalle_prompt) {
+        try {
+          const imageUrl = await generateDiagramImage(action.config.dalle_prompt);
+          // Mutate the action to show_content with the generated image URL
+          // The frontend will receive this via the <<<ACTION_JSON>>> appended by flush()
+          (action as unknown as { type: string }).type = "show_content";
+          (action as unknown as { config: { title: string; content: string; diagram_url: string } }).config = {
+            title: action.config.title,
+            content: "",
+            diagram_url: imageUrl,
+          };
+        } catch {
+          // Fallback: show the prompt as text
+          (action as unknown as { type: string }).type = "show_content";
+          (action as unknown as { config: { title: string; content: string } }).config = {
+            title: action.config.title,
+            content: `Diagram generation failed. Description: ${action.config.dalle_prompt}`,
+          };
+        }
+      }
+      // Mermaid: passed through to frontend as-is
       break;
     }
 

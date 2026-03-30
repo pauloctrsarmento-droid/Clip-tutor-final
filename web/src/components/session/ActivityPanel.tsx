@@ -5,6 +5,7 @@ import { ActivityEmpty } from "./ActivityEmpty";
 import { ActivityQuiz } from "./ActivityQuiz";
 import { ActivityFlashcards } from "./ActivityFlashcards";
 import { ActivityContent } from "./ActivityContent";
+import { MermaidDiagram } from "./MermaidDiagram";
 import type { TutorAction } from "@/lib/types";
 import type { QuizSummaryData } from "@/hooks/use-embedded-quiz";
 import type { FlashcardSummaryData } from "@/hooks/use-embedded-flashcards";
@@ -13,7 +14,9 @@ export type ActivityState =
   | { type: "idle" }
   | { type: "quiz"; subjectCode: string; topicId?: string; numQuestions?: number }
   | { type: "flashcards"; subjectCode: string; topicId?: string; count?: number }
-  | { type: "content"; title: string; content: string; diagramUrl?: string };
+  | { type: "content"; title: string; content: string; diagramUrl?: string }
+  | { type: "mermaid"; title: string; code: string }
+  | { type: "image"; title: string; url: string };
 
 interface ActivityPanelProps {
   activity: ActivityState;
@@ -85,6 +88,27 @@ export function ActivityPanel({
               diagramUrl={activity.diagramUrl}
             />
           )}
+
+          {activity.type === "mermaid" && (
+            <div className="h-full overflow-y-auto">
+              <MermaidDiagram title={activity.title} code={activity.code} />
+            </div>
+          )}
+
+          {activity.type === "image" && (
+            <div className="p-6 h-full overflow-y-auto">
+              <h3 className="text-lg font-heading font-semibold text-foreground mb-4">
+                {activity.title}
+              </h3>
+              <div className="rounded-xl overflow-hidden border border-border/50">
+                <img
+                  src={activity.url}
+                  alt={activity.title}
+                  className="w-full h-auto max-h-[500px] object-contain bg-white"
+                />
+              </div>
+            </div>
+          )}
         </motion.div>
       </AnimatePresence>
     </div>
@@ -118,6 +142,16 @@ export function actionToActivity(
         content: action.config.content,
         diagramUrl: action.config.diagram_url,
       };
+    case "show_diagram":
+      if (action.config.diagram_type === "mermaid" && action.config.mermaid_code) {
+        return { type: "mermaid", title: action.config.title, code: action.config.mermaid_code };
+      }
+      if (action.config.diagram_type === "dalle" && action.config.dalle_prompt) {
+        // DALL-E images are resolved by the backend — arrives as diagram_url on show_content
+        // This case handles when the backend couldn't resolve it
+        return { type: "content", title: action.config.title, content: "Generating diagram..." };
+      }
+      return null;
     case "clear_panel":
     case "end_block":
     case "end_session":
