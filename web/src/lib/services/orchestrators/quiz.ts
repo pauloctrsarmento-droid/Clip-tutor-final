@@ -117,10 +117,22 @@ export async function startQuizSession(options: {
   const { data: allQuestions, error } = await query.limit(count * 4);
   if (error) throw error;
 
-  // Filter out seen + recently correct questions
-  const available = (allQuestions ?? []).filter(
-    (q) => !exposedIds.has(q.id as string) && !recentIds.has(q.id as string)
-  );
+  // Filter out:
+  // 1. Already seen questions (question_exposure)
+  // 2. Recently answered correctly (last 7 days)
+  // 3. Questions that require images/visual content we don't have
+  const IMAGE_KEYWORDS = /\b(regardez|panneaux|images?|dessins?|photos?|pictures?|look at the|see the diagram|figure|illustration)\b/i;
+
+  const available = (allQuestions ?? []).filter((q) => {
+    if (exposedIds.has(q.id as string)) return false;
+    if (recentIds.has(q.id as string)) return false;
+    // Skip questions referencing images if no diagrams available
+    const text = `${q.question_text as string} ${(q.parent_context as string) ?? ""}`;
+    const needsImage = IMAGE_KEYWORDS.test(text);
+    const hasImage = (q.has_diagram as boolean) || ((q.fig_refs as string[])?.length ?? 0) > 0;
+    if (needsImage && !hasImage) return false;
+    return true;
+  });
   // Fall back to all questions if not enough unseen (she's done them all!)
   const pool = available.length >= count ? available : (allQuestions ?? []);
 
