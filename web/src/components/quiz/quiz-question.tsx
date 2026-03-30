@@ -101,33 +101,61 @@ export function QuizQuestion({
   );
 }
 
-/** Format passage text: join PDF line breaks into flowing paragraphs */
+// Instruction patterns — these are exam instructions, not part of the reading passage
+const INSTRUCTION_PATTERN = /^(lisez|répondez|read|answer|look at|regardez|cochez|écrivez|choisissez|complétez|remplissez|tick|choose|complete|fill in)/i;
+
+/** Format passage text: separate instructions from reading content */
 function PassageText({ content }: { content: string }) {
   // Step 1: Normalize line breaks
-  // \n\n = real paragraph break (keep)
-  // \n = PDF line wrap within same paragraph (join with space)
   const normalized = content
-    .replace(/\n\n+/g, "\u0000PARA\u0000")  // mark real paragraph breaks
-    .replace(/\n/g, " ")                      // join single newlines into spaces
-    .replace(/\u0000PARA\u0000/g, "\n\n")    // restore paragraph breaks
-    .replace(/  +/g, " ");                    // collapse multiple spaces
+    .replace(/\n\n+/g, "\u0000PARA\u0000")
+    .replace(/\n/g, " ")
+    .replace(/\u0000PARA\u0000/g, "\n\n")
+    .replace(/  +/g, " ");
 
   const paragraphs = normalized.split(/\n\n/).filter((p) => p.trim());
 
+  // Step 2: Separate instruction lines from passage content
+  const instructions: string[] = [];
+  const passageParas: string[] = [];
+
+  for (const para of paragraphs) {
+    const trimmed = para.trim();
+    if (!trimmed) continue;
+
+    // First few lines that match instruction patterns
+    if (passageParas.length === 0 && INSTRUCTION_PATTERN.test(trimmed)) {
+      instructions.push(trimmed);
+    } else {
+      passageParas.push(trimmed);
+    }
+  }
+
   return (
     <>
-      {paragraphs.map((para, i) => {
+      {/* Instructions — visually distinct */}
+      {instructions.length > 0 && (
+        <div className="bg-primary/5 border border-primary/10 rounded-lg px-3 py-2 mb-3">
+          {instructions.map((inst, i) => (
+            <p key={`inst-${i}`} className="text-xs text-primary/70 font-medium">
+              {inst}
+            </p>
+          ))}
+        </div>
+      )}
+
+      {/* Reading passage — flowing text */}
+      {passageParas.map((para, i) => {
         const trimmed = para.trim();
-        if (!trimmed) return null;
 
         // Detect dialogue (contains « » or starts with quote)
         const isDialogue = /[«»]/.test(trimmed) || /^[""]/.test(trimmed);
         // Detect title/header (short line at start)
-        const isTitle = trimmed.length < 60 && i === 0 && paragraphs.length > 2;
+        const isTitle = trimmed.length < 60 && i === 0 && passageParas.length > 2;
 
         if (isTitle) {
           return (
-            <p key={i} className="font-semibold text-foreground text-sm mb-1">
+            <p key={i} className="font-semibold text-foreground text-sm">
               {trimmed}
             </p>
           );
