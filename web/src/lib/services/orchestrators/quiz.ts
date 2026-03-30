@@ -121,20 +121,38 @@ export async function startQuizSession(options: {
   // 1. Already seen questions (question_exposure)
   // 2. Recently answered correctly (last 7 days)
   // 3. Questions that require images/visual content we don't have
-  const IMAGE_KEYWORDS = /\b(regardez|panneaux|images?|dessins?|photos?|pictures?|look at the|see the diagram|figure|illustration)\b/i;
+
+  // These patterns mean the question DEPENDS on seeing an image to answer
+  const NEEDS_IMAGE = /\b(regardez|panneaux|look at the|see the|shown in the|in the diagram|in the figure|the picture shows|the image shows|the graph shows|the table shows|from the graph|from the diagram|from the figure|les images|la photo|l['']image montre)\b/i;
+
+  // These patterns are INSTRUCTIONS (student must draw/sketch) — NOT image dependencies
+  const IS_INSTRUCTION = /\b(draw a|sketch a|complete the diagram|label the diagram|plot a graph|dessinez|tracez)\b/i;
 
   const available = (allQuestions ?? []).filter((q) => {
     if (exposedIds.has(q.id as string)) return false;
     if (recentIds.has(q.id as string)) return false;
-    // Skip questions referencing images if no diagrams available
+
+    // Check if question needs an image to be answerable
     const text = `${q.question_text as string} ${(q.parent_context as string) ?? ""}`;
-    const needsImage = IMAGE_KEYWORDS.test(text);
     const hasImage = (q.has_diagram as boolean) || ((q.fig_refs as string[])?.length ?? 0) > 0;
-    if (needsImage && !hasImage) return false;
+
+    // If question has images available, always include
+    if (hasImage) return true;
+
+    // If question text references visual content but we don't have images
+    if (NEEDS_IMAGE.test(text) && !IS_INSTRUCTION.test(text)) return false;
+
     return true;
   });
-  // Fall back to all questions if not enough unseen (she's done them all!)
-  const pool = available.length >= count ? available : (allQuestions ?? []);
+  // Fall back: if not enough unseen, allow seen questions but NEVER unanswerable ones
+  const answerable = (allQuestions ?? []).filter((q) => {
+    const text = `${q.question_text as string} ${(q.parent_context as string) ?? ""}`;
+    const hasImage = (q.has_diagram as boolean) || ((q.fig_refs as string[])?.length ?? 0) > 0;
+    if (hasImage) return true;
+    if (NEEDS_IMAGE.test(text) && !IS_INSTRUCTION.test(text)) return false;
+    return true;
+  });
+  const pool = available.length >= count ? available : answerable;
 
   // Shuffle
   for (let i = pool.length - 1; i > 0; i--) {
