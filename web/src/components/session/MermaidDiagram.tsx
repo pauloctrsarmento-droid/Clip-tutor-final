@@ -52,20 +52,23 @@ export function MermaidDiagram({ code, title }: MermaidDiagramProps) {
 
     const id = `mermaid-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
-    // Ensure real newlines (JSON may escape them as literal \n)
+    // Ensure real newlines
     let cleanCode = code
       .replace(/\\n/g, "\n")
       .replace(/\\t/g, "  ")
       .trim();
 
-    // If code is all on one line, insert newlines before node declarations
-    if (!cleanCode.includes("\n") || cleanCode.split("\n").length < 3) {
+    // If code is mostly on one line, split into proper Mermaid statements
+    const lineCount = cleanCode.split("\n").filter((l) => l.trim()).length;
+    if (lineCount < 4) {
+      // Insert newline before each node that starts a new statement
+      // Pattern: after a closing bracket ] or ) followed by space and a capital letter
       cleanCode = cleanCode
-        .replace(/\s+([A-Z])\[/g, "\n    $1[")          // A[Label] on new line
-        .replace(/\s+(subgraph)/gi, "\n    $1")           // subgraph on new line
-        .replace(/\s+(end)\b/gi, "\n    $1")              // end on new line
-        .replace(/\s+(style\s)/gi, "\n    $1")            // style on new line
-        .replace(/\s+(linkStyle\s)/gi, "\n    $1")        // linkStyle on new line
+        .replace(/\]\s+([A-Z])/g, "]\n    $1")           // ]  A → ]\n    A
+        .replace(/\)\s+([A-Z])/g, ")\n    $1")           // )  A → )\n    A
+        .replace(/(graph\s+(?:TD|LR|TB|BT|RL))\s+/i, "$1\n    ") // graph TD A → graph TD\n    A
+        .replace(/\s+(subgraph)/gi, "\n    $1")
+        .replace(/\s+(end)\b/gi, "\n    $1")
         .trim();
     }
 

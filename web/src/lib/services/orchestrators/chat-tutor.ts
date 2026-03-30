@@ -109,15 +109,20 @@ export interface SendMessageOptions {
 }
 
 /**
- * Process a user message and return a streaming response.
- * Also handles post-stream side effects (save message, summarize, etc.)
+ * Process a user message and return a combined ReadableStream.
+ *
+ * Architecture (v2 — bulletproof):
+ * 1. Stream LLM text to frontend (pure text, no JSON, no delimiters)
+ * 2. After stream ends, detect intent via gpt-4o-mini (jsonMode=true → guaranteed valid JSON)
+ * 3. If diagram requested, generate Mermaid code via gpt-4o-mini
+ * 4. Append <<<ACTION_JSON>>> with server-generated JSON
+ * 5. Close stream
+ *
+ * The LLM NEVER generates JSON. All structured data is server-generated.
  */
 export async function sendMessage(
   options: SendMessageOptions,
-): Promise<{
-  stream: ReadableStream<Uint8Array>;
-  afterStream: () => Promise<{ action: TutorAction | null; internal: TutorInternal | null }>;
-}> {
+): Promise<ReadableStream<Uint8Array>> {
   const { sessionId, message, images, studentId = STUDENT_ID } = options;
 
   // Save user message
@@ -128,42 +133,27 @@ export async function sendMessage(
     images: images ?? [],
   });
 
-  // Load session state
-  const { data: session } = await supabaseAdmin
-    .from("study_sessions")
-    .select("*")
-    .eq("id", sessionId)
-    .single();
+  // Load session state + messages + build prompt in parallel
+  const [sessionRes, messagesRes] = await Promise.all([
+    supabaseAdmin.from("study_sessions").select("*").eq("id", sessionId).single(),
+    supabaseAdmin.from("chat_messages").select("*").eq("session_id", sessionId).order("created_at", { ascending: true }),
+  ]);
 
+  const session = sessionRes.data;
   if (!session) throw new Error("Session not found");
+  const allMessages = (messagesRes.data ?? []) as ChatMessage[];
 
-  // Load recent messages
-  const { data: recentMessages } = await supabaseAdmin
-    .from("chat_messages")
-    .select("*")
-    .eq("session_id", sessionId)
-    .order("created_at", { ascending: true });
+  const systemPrompt = await buildSystemPrompt(session, allMessages, studentId);
 
-  const allMessages = (recentMessages ?? []) as ChatMessage[];
-
-  // Build system prompt
-  const systemPrompt = await buildSystemPrompt(
-    session,
-    allMessages,
-    studentId,
-  );
-
-  // Build conversation history for OpenAI (sliding window)
+  // Build conversation history (sliding window)
   const windowMessages = allMessages.slice(-SLIDING_WINDOW_SIZE);
   const chatHistory: ChatTurnMessage[] = windowMessages.map((m) => ({
     role: m.role === "assistant" ? "assistant" as const : "user" as const,
     content: m.content,
   }));
+  chatHistory.pop(); // Remove last user message (goes as current 'user' param)
 
-  // Remove the last user message from history (it goes as the current 'user' param)
-  chatHistory.pop();
-
-  // Build user content (text + optional images)
+  // Build user content
   let userContent: string | VisionContentPart[];
   if (images && images.length > 0) {
     userContent = [
@@ -177,125 +167,190 @@ export async function sendMessage(
     userContent = message;
   }
 
-  // Call OpenAI streaming
-  const stream = await callOpenAIStream({
+  // Call OpenAI streaming (pure text — LLM never generates JSON)
+  const llmStream = await callOpenAIStream({
     system: systemPrompt,
     user: userContent,
     messages: chatHistory,
     maxTokens: 1024,
   });
 
-  // Variables populated by flush(), used by afterStream()
-  let parsedAction: TutorAction | null = null;
-  let parsedInternal: TutorInternal | null = null;
-
-  // Collect full response and filter out LLM-generated delimiters from stream.
-  // The backend will append clean JSON at the end instead.
-  let fullResponse = "";
-  let hitDelimiter = false;
   const encoder = new TextEncoder();
   const decoder = new TextDecoder();
 
-  const teeStream = new TransformStream<Uint8Array, Uint8Array>({
-    transform(chunk, controller) {
-      const text = decoder.decode(chunk, { stream: true });
-      fullResponse += text;
+  // Build a combined ReadableStream:
+  // Phase 1: pipe LLM text chunks (live streaming)
+  // Phase 2: detect intent + generate diagram + append action JSON
+  return new ReadableStream<Uint8Array>({
+    async start(controller) {
+      let fullResponse = "";
 
-      if (hitDelimiter) return; // Stop sending to frontend after delimiter
-
-      // Check if this chunk contains the start of a delimiter (<<<)
-      const delimIdx = text.indexOf("<<<");
-      if (delimIdx >= 0) {
-        hitDelimiter = true;
-        // Send only the text before the delimiter
-        const before = text.slice(0, delimIdx);
-        if (before) controller.enqueue(encoder.encode(before));
-      } else {
-        // Also check accumulated response for delimiter (might span chunks)
-        const fullDelimIdx = fullResponse.indexOf("<<<");
-        if (fullDelimIdx >= 0 && fullDelimIdx < fullResponse.length - text.length) {
-          hitDelimiter = true;
-        } else {
-          controller.enqueue(chunk);
+      // Phase 1: Stream LLM text to frontend
+      const reader = llmStream.getReader();
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          const text = decoder.decode(value, { stream: true });
+          fullResponse += text;
+          // Filter out any accidental delimiters (LLM should not produce these with new prompt)
+          if (!text.includes("<<<")) {
+            controller.enqueue(value);
+          } else {
+            const clean = text.split("<<<")[0];
+            if (clean) controller.enqueue(encoder.encode(clean));
+          }
         }
+      } finally {
+        reader.releaseLock();
       }
-    },
-    flush(controller) {
-      // Parse action/internal from full response
-      let action: TutorAction | null = null;
-      let internal: TutorInternal | null = null;
-      const parsed = parseResponse(fullResponse);
-      action = parsed.action ?? extractActionByRegex(fullResponse);
-      internal = parsed.internal;
 
-      parsedAction = action;
-      parsedInternal = internal;
+      // Phase 2: Detect intent + generate diagrams (server-side, reliable)
+      try {
+        const currentBlockIndex = (session.current_block_index as number) ?? 0;
+        const planData = await getTodayPlan(studentId);
+        const allBlocks = [...planData.today, ...planData.overdue].filter(b => b.study_type !== "exam");
+        const currentTopicId = allBlocks[currentBlockIndex]?.syllabus_topic_ids?.[0] ?? "";
 
-      // Enqueue the raw action (not yet resolved for diagrams)
-      const meta: Record<string, unknown> = {};
-      if (action) meta.action = action;
-      if (internal) meta.internal = internal;
-      if (Object.keys(meta).length > 0) {
-        const jsonStr = "\n<<<ACTION_JSON>>>\n" + JSON.stringify(meta);
-        controller.enqueue(encoder.encode(jsonStr));
+        const detected = await detectAction(
+          fullResponse,
+          message,
+          (session.block_phase as string) ?? "explanation",
+          currentTopicId,
+        );
+
+        let action = detected.action;
+        const internal = detected.internal;
+
+        // If diagram requested, generate Mermaid code
+        if (action?.type === "show_diagram" && action.config.diagram_type === "mermaid") {
+          const mermaidCode = await generateMermaidCode(
+            action.config.title ?? "Diagram",
+            fullResponse,
+          );
+          action = {
+            type: "show_diagram",
+            config: { ...action.config, mermaid_code: mermaidCode },
+          };
+        }
+
+        // If DALL-E requested, generate image
+        if (action?.type === "show_diagram" && action.config.diagram_type === "dalle" && action.config.dalle_prompt) {
+          try {
+            const imageUrl = await generateDiagramImage(action.config.dalle_prompt);
+            action = { type: "show_content", config: { title: action.config.title ?? "Diagram", content: "", diagram_url: imageUrl } };
+          } catch {
+            action = { type: "show_content", config: { title: action.config.title ?? "Diagram", content: "Diagram generation failed." } };
+          }
+        }
+
+        // Append action JSON to stream
+        const meta: Record<string, unknown> = {};
+        if (action) meta.action = action;
+        if (internal) meta.internal = internal;
+        if (Object.keys(meta).length > 0) {
+          const jsonStr = "\n<<<ACTION_JSON>>>\n" + JSON.stringify(meta);
+          controller.enqueue(encoder.encode(jsonStr));
+        }
+
+        // Save to DB + handle side effects (fire-and-forget)
+        savePostStreamData(sessionId, fullResponse, action, internal, session, allMessages, studentId).catch((err) => {
+          console.error("[sendMessage] post-stream error:", err);
+        });
+      } catch (err) {
+        console.error("[sendMessage] intent detection error:", err);
       }
+
+      controller.close();
     },
   });
+}
 
-  const outputStream = stream.pipeThrough(teeStream);
+// ── Intent Detection (gpt-4o-mini, jsonMode=true → guaranteed valid JSON) ──
 
-  // After-stream processing (called by the API route after stream completes)
-  const afterStream = async () => {
-    // Resolve diagrams (Mermaid generation, DALL-E, etc.)
-    const { text } = parseResponse(fullResponse);
-    let action = parsedAction;
-    const internal = parsedInternal;
+async function detectAction(
+  assistantText: string,
+  userMessage: string,
+  blockPhase: string,
+  currentTopicId: string,
+): Promise<{ action: TutorAction | null; internal: TutorInternal }> {
+  const result = await callOpenAI({
+    system: `You analyze a tutor's response and extract structured metadata. Return JSON with:
+- "action": null OR one action object
+- "internal": {"current_phase": "intro"|"explanation"|"quiz"|"transition", "time_elapsed_minutes": 0, "block_progress": "1/1"}
 
-    if (action) {
-      action = await resolveDiagramAction(action, fullResponse);
-    }
+Available actions (use ONLY when clearly intended):
+- {"type":"show_diagram","config":{"title":"...","diagram_type":"mermaid"}} — tutor describes/offers a visual diagram, flowchart, or comparison
+- {"type":"show_content","config":{"title":"...","content":"..."}} — tutor presents a structured summary or reference material for the board
+- {"type":"launch_quiz","config":{"topic_id":"${currentTopicId}","num_questions":6,"question_types":["mcq","short"]}} — student said yes to a quiz
+- {"type":"launch_flashcards","config":{"topic_id":"${currentTopicId}","count":12}} — student said yes to flashcards
+- {"type":"clear_panel","config":{}} — clear the activity panel
+- {"type":"end_block","config":{"completed_block_index":0}} — transitioning to next topic
+- {"type":"end_session","config":{"reason":"completed"}} — session ending
 
-    // Save assistant message with resolved action
-    await supabaseAdmin.from("chat_messages").insert({
-      session_id: sessionId,
-      role: "assistant",
-      content: text,
-      action: action ?? undefined,
-      internal: internal ?? undefined,
-    });
+Rules:
+- For show_diagram, only set title and diagram_type. Do NOT generate diagram code.
+- For launch_quiz/flashcards, only emit if the STUDENT explicitly agreed (said yes, sure, ok, etc.)
+- Default action is null (no action needed for normal conversation)
+- current_phase should reflect what the tutor is doing: intro, explanation, quiz, or transition`,
+    user: `Student said: "${userMessage}"\n\nTutor responded:\n${assistantText.slice(0, 1500)}`,
+    maxTokens: 300,
+    jsonMode: true,
+    model: "gpt-4o-mini",
+  });
 
-    // Handle actions
-    if (action) {
-      await handleAction(sessionId, action, studentId);
-    }
+  try {
+    return JSON.parse(result) as { action: TutorAction | null; internal: TutorInternal };
+  } catch {
+    return { action: null, internal: { current_phase: blockPhase as BlockPhase, time_elapsed_minutes: 0, block_progress: "1/1" } };
+  }
+}
 
-    // Update session state from internal metadata
-    if (internal) {
-      await supabaseAdmin
-        .from("study_sessions")
-        .update({ block_phase: internal.current_phase })
-        .eq("id", sessionId);
-    }
+// ── Post-stream DB saves (fire-and-forget) ──────────────────
 
-    // Check if progressive summarization is needed
-    const totalMessages = allMessages.length + 1; // +1 for the new assistant message
-    if (totalMessages > SUMMARIZE_THRESHOLD) {
-      const messagesToSummarize = allMessages.slice(0, SUMMARIZE_BATCH);
-      const newSummary = await progressiveSummarize(
-        session.running_summary as string | null,
-        messagesToSummarize,
-      );
-      await supabaseAdmin
-        .from("study_sessions")
-        .update({ running_summary: newSummary })
-        .eq("id", sessionId);
-    }
+async function savePostStreamData(
+  sessionId: string,
+  fullResponse: string,
+  action: TutorAction | null,
+  internal: TutorInternal | null,
+  session: Record<string, unknown>,
+  allMessages: ChatMessage[],
+  studentId: string,
+): Promise<void> {
+  // Save assistant message
+  await supabaseAdmin.from("chat_messages").insert({
+    session_id: sessionId,
+    role: "assistant",
+    content: fullResponse,
+    action: action ?? undefined,
+    internal: internal ?? undefined,
+  });
 
-    // Return the resolved action so the API route can send it to the frontend
-    return { action, internal };
-  };
+  // Handle actions
+  if (action) {
+    await handleAction(sessionId, action, studentId);
+  }
 
-  return { stream: outputStream, afterStream };
+  // Update block phase
+  if (internal) {
+    await supabaseAdmin
+      .from("study_sessions")
+      .update({ block_phase: internal.current_phase })
+      .eq("id", sessionId);
+  }
+
+  // Progressive summarization
+  if (allMessages.length + 1 > SUMMARIZE_THRESHOLD) {
+    const messagesToSummarize = allMessages.slice(0, SUMMARIZE_BATCH);
+    const newSummary = await progressiveSummarize(
+      session.running_summary as string | null,
+      messagesToSummarize,
+    );
+    await supabaseAdmin
+      .from("study_sessions")
+      .update({ running_summary: newSummary })
+      .eq("id", sessionId);
+  }
 }
 
 // ── Pause Session ──────────────────────────────────────────
