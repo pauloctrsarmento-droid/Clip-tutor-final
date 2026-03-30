@@ -117,41 +117,14 @@ export async function startQuizSession(options: {
   const { data: allQuestions, error } = await query.limit(count * 4);
   if (error) throw error;
 
-  // Filter out:
-  // 1. Already seen questions (question_exposure)
-  // 2. Recently answered correctly (last 7 days)
-  // 3. Questions that require images/visual content we don't have
-
-  // These patterns mean the question DEPENDS on seeing an image to answer
-  const NEEDS_IMAGE = /\b(regardez|panneaux|look at the|see the|shown in the|in the diagram|in the figure|the picture shows|the image shows|the graph shows|the table shows|from the graph|from the diagram|from the figure|les images|la photo|l['']image montre)\b/i;
-
-  // These patterns are INSTRUCTIONS (student must draw/sketch) — NOT image dependencies
-  const IS_INSTRUCTION = /\b(draw a|sketch a|complete the diagram|label the diagram|plot a graph|dessinez|tracez)\b/i;
-
+  // Filter out unanswerable questions (need images we don't have)
   const available = (allQuestions ?? []).filter((q) => {
     if (exposedIds.has(q.id as string)) return false;
     if (recentIds.has(q.id as string)) return false;
-
-    // Check if question needs an image to be answerable
-    const text = `${q.question_text as string} ${(q.parent_context as string) ?? ""}`;
-    const hasImage = (q.has_diagram as boolean) || ((q.fig_refs as string[])?.length ?? 0) > 0;
-
-    // If question has images available, always include
-    if (hasImage) return true;
-
-    // If question text references visual content but we don't have images
-    if (NEEDS_IMAGE.test(text) && !IS_INSTRUCTION.test(text)) return false;
-
-    return true;
+    return isAnswerable(q);
   });
   // Fall back: if not enough unseen, allow seen questions but NEVER unanswerable ones
-  const answerable = (allQuestions ?? []).filter((q) => {
-    const text = `${q.question_text as string} ${(q.parent_context as string) ?? ""}`;
-    const hasImage = (q.has_diagram as boolean) || ((q.fig_refs as string[])?.length ?? 0) > 0;
-    if (hasImage) return true;
-    if (NEEDS_IMAGE.test(text) && !IS_INSTRUCTION.test(text)) return false;
-    return true;
-  });
+  const answerable = (allQuestions ?? []).filter((q) => isAnswerable(q));
   const pool = available.length >= count ? available : answerable;
 
   // Shuffle
@@ -385,4 +358,40 @@ export async function endQuizSession(options: {
     accuracy: totalAvailable > 0 ? Math.round((totalEarned / totalAvailable) * 100) : 0,
     duration_seconds: Math.round((endedAt - startedAt) / 1000),
   };
+}
+
+// ── Question Answerability Filter ─────────────────────────────
+
+// Question DEPENDS on seeing an image to answer
+const NEEDS_IMAGE = /\b(regardez|panneaux|look at the|see the|shown in the|in the diagram|in the figure|the picture shows|the image shows|the graph shows|the table shows|from the graph|from the diagram|from the figure|les images|la photo|l['']image montre|cochez.*case|bonne lettre|tick.*box|correct letter)\b/i;
+
+// Student must draw/sketch (instructions, not image dependencies)
+const IS_INSTRUCTION = /\b(draw a|sketch a|complete the diagram|label the diagram|plot a graph|dessinez|tracez)\b/i;
+
+// Bare letter options: text has 3+ standalone letters (A\nB\nC) without descriptions
+// This means the options refer to images we don't have
+const BARE_LETTERS = /(?:^|\n)\s*[A-H]\s*(?:\n|$)/gm;
+
+/**
+ * Check if a question can be answered without external images.
+ * Returns false for questions that reference visual content we don't have.
+ */
+function isAnswerable(q: Record<string, unknown>): boolean {
+  const hasImage = (q.has_diagram as boolean) || ((q.fig_refs as string[])?.length ?? 0) > 0;
+
+  // Questions with available images are always answerable
+  if (hasImage) return true;
+
+  const questionText = (q.question_text as string) ?? "";
+  const parentContext = (q.parent_context as string) ?? "";
+  const fullText = `${questionText} ${parentContext}`;
+
+  // Check for explicit image references
+  if (NEEDS_IMAGE.test(fullText) && !IS_INSTRUCTION.test(fullText)) return false;
+
+  // Check for bare letter options (A\nB\nC without descriptions) — image matching questions
+  const bareMatches = questionText.match(BARE_LETTERS);
+  if (bareMatches && bareMatches.length >= 3) return false;
+
+  return true;
 }
