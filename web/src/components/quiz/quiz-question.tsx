@@ -13,7 +13,7 @@ interface QuizQuestionProps {
   diagramUrls: string[];
 }
 
-const LONG_PASSAGE_THRESHOLD = 200;
+const LONG_PASSAGE_THRESHOLD = 800;
 
 export function QuizQuestion({
   questionText,

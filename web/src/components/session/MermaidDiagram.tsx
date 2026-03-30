@@ -81,6 +81,15 @@ export function MermaidDiagram({ code, title }: MermaidDiagramProps) {
     mermaid
       .render(id, cleanCode)
       .then(({ svg }) => {
+        // Detect empty/broken renders: Mermaid sometimes silently returns
+        // an SVG with no actual content (viewBox "-8 -8 16 16", zero nodes)
+        const hasContent = /<text\b|<rect\b|<polygon\b|<circle\b|class="node"|class="label"/.test(svg);
+        if (!hasContent) {
+          setError("Diagram could not be rendered — try rephrasing your request");
+          setRendering(false);
+          return;
+        }
+
         // Force SVG to fill container width with readable size
         const responsiveSvg = svg
           .replace(/<svg /, '<svg style="width:100%;min-height:300px;height:auto;" ')

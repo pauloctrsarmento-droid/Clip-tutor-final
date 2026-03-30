@@ -156,6 +156,21 @@ export function cleanQuestionText(text: string): string {
   // Remove "(i)" "(ii)" sub-part markers that are orphaned
   result = result.replace(/^\s*\(i+\)\s*\.{2,}\s*$/gm, "");
 
+  // Remove answer-line prompts from paper: "deduction ...", "explanation ...", "name ...", etc.
+  // These are short lines (1-4 words) ending in "..." where students would write on paper.
+  // Exclude lines that contain sentence structure (articles, prepositions) to keep real text.
+  result = result.replace(/^[ \t]*[A-Za-z][\w\s]{0,40}\.{2,}\s*$/gm, (match) => {
+    const trimmed = match.trim();
+    // Keep if it looks like a real sentence fragment (has articles/prepositions/conjunctions)
+    if (/\b(the|a|an|is|are|was|were|has|have|of|in|on|at|for|by|with|from|to|and|that|which|when|where|as|it|its|they|he|she|if)\b/i.test(trimmed)) {
+      return match;
+    }
+    // Keep if it's very long (likely a real sentence with "..." as ellipsis)
+    if (trimmed.length > 50) return match;
+    // Remove short answer prompts like "deduction ...", "name ...", "colour ..."
+    return "";
+  });
+
   // Remove ", ," artifact (empty table cells from PDF)
   result = result.replace(/[,\s]*,\s*,\s*/g, "");
 
@@ -164,6 +179,26 @@ export function cleanQuestionText(text: string): string {
 
   // Remove "Exercice X Questions Y-Z" headers from other sections
   result = result.replace(/Exercice\s+\d+\s+Questions?\s+\d+.*/gi, "");
+
+  // Remove standalone "Fig. X.Y" references (the diagram image is shown separately)
+  result = result.replace(/^\s*Fig\.\s?\d+\.\d+\s*$/gm, "");
+
+  // Remove diagram labels: short non-sentence lines that leaked from PDF figures.
+  // Same logic as cleanParentContext — lines < 25 chars that aren't sentences.
+  const lines = result.split("\n");
+  const filtered = lines.filter((line) => {
+    const t = line.trim();
+    if (!t) return true; // keep blank lines (collapsed later)
+    if (isAxisOrTickValue(t)) return false;
+    if (t.length < 25 && !isSentenceLine(t) && !isDiagramLabel(t)) {
+      // Additional check: keep if it looks like a sub-part label e.g. "(a)", "(b)(i)"
+      if (/^\(/.test(t)) return true;
+      return false;
+    }
+    if (isDiagramLabel(t)) return false;
+    return true;
+  });
+  result = filtered.join("\n");
 
   // Clean up extra whitespace
   result = result.replace(/\n{3,}/g, "\n\n").trim();

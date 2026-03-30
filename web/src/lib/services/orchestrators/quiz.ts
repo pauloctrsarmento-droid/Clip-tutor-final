@@ -111,6 +111,9 @@ export async function startQuizSession(options: {
     query = query.eq("response_type", "text");
   } else if (questionType === "numeric") {
     query = query.eq("response_type", "numeric");
+  } else {
+    // "All Types" — exclude response types that don't work in digital quiz format
+    query = query.in("response_type", ["mcq", "text", "numeric"]);
   }
 
   // Fetch more than needed for filtering
@@ -141,18 +144,8 @@ export async function startQuizSession(options: {
     const tableRefs = (q.table_refs as string[]) ?? [];
     const paperId = q.paper_id as string;
 
-    // Extract fig refs from parent_context if not already in fig_refs
-    const parentCtx = (q.parent_context as string) ?? "";
-    const contextFigMatches = parentCtx.match(/Fig\.\s?(\d+\.\d+)/gi) ?? [];
-    const contextFigRefs = contextFigMatches.map((m) => {
-      const match = m.match(/(\d+\.\d+)/);
-      return match ? match[1] : "";
-    }).filter(Boolean);
-
-    const allFigRefs = [...new Set([...figRefs, ...contextFigRefs])];
-
-    const diagramUrls = (q.has_diagram || allFigRefs.length > 0)
-      ? getQuestionDiagramUrls(paperId, allFigRefs, tableRefs)
+    const diagramUrls = (q.has_diagram || figRefs.length > 0)
+      ? getQuestionDiagramUrls(paperId, figRefs, tableRefs)
       : [];
 
     // Parse MCQ options from mark_scheme

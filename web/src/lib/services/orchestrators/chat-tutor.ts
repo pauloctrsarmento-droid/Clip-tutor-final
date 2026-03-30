@@ -807,17 +807,20 @@ async function resolveDiagramAction(action: TutorAction, fullResponse: string): 
 async function generateMermaidCode(title: string, context: string): Promise<string> {
   try {
     const result = await callOpenAI({
-      system: `You generate Mermaid.js diagram code. Rules:
-1. Return ONLY valid Mermaid code. No markdown fences, no explanation, no comments.
-2. Start with: graph TD, graph LR, flowchart TD, flowchart LR, sequenceDiagram, classDiagram, or pie
-3. Each statement MUST be on its own line. Never put multiple statements on one line.
-4. Use simple node IDs (A, B, C) with labels in brackets: A[Label]
-5. Use --> for arrows, -->|text| for labeled arrows
-6. Do NOT use semicolons at end of lines
-7. Do NOT use backslashes
-8. Keep it simple — max 15 nodes
+      system: `You generate Mermaid.js diagram code. Output ONLY the code — nothing else.
 
-Example of VALID code:
+Rules:
+1. ONLY valid Mermaid syntax. No markdown fences, no explanation, no comments, no text after the diagram.
+2. Start with: graph TD, graph LR, flowchart TD, flowchart LR, sequenceDiagram, classDiagram, or pie
+3. One statement per line. Indent with 4 spaces.
+4. Node IDs: A, B, C with labels in brackets: A[Label]
+5. Arrows: --> for connections, -->|text| for labeled arrows
+6. NO semicolons, NO backslashes, NO special characters in labels
+7. Max 12 nodes. Use flowcharts for processes/relationships, not for spatial/physical layouts.
+8. For force diagrams or spatial concepts, use a flowchart showing the relationships, not positions.
+9. STOP immediately after the last node/edge line. Do NOT add any explanation.
+
+VALID output (nothing before or after):
 graph TD
     A[Solid] -->|Melting| B[Liquid]
     B -->|Boiling| C[Gas]
@@ -837,14 +840,20 @@ graph TD
       /^\s*(graph|flowchart|sequenceDiagram|classDiagram|pie)\b/i.test(l),
     );
     if (startIdx >= 0) {
-      // Take from the graph line until we hit a non-diagram line (empty or explanation text)
+      // Take from the graph line until we hit a non-diagram line
       const diagramLines: string[] = [];
       for (let i = startIdx; i < lines.length; i++) {
         const line = lines[i].trim();
-        // Stop at explanation text (lines not starting with diagram keywords or node refs)
-        if (i > startIdx && line && !line.match(/^[\s\w[\]({|}><!&\-=:.#"';,]+$/) && !line.startsWith("subgraph") && !line.startsWith("end") && !line.startsWith("style") && !line.startsWith("linkStyle") && !line.startsWith("class")) {
-          break;
-        }
+        // Allow: empty lines, graph/flowchart header, node definitions (A[...]),
+        // edges (-->), subgraph/end, style/linkStyle/class directives
+        const isMermaidLine =
+          !line ||
+          i === startIdx ||
+          /^\s*(subgraph|end)\b/i.test(line) ||
+          /^\s*(style|linkStyle|class)\b/.test(line) ||
+          /^\s*\w+/.test(line) && /(\[|-->|---|\(|{|:::|\|)/.test(line) ||
+          /^\s*\w+\s*$/.test(line) && line.length < 20; // short node ID
+        if (i > startIdx && line && !isMermaidLine) break;
         diagramLines.push(lines[i]);
       }
       cleaned = diagramLines.join("\n");
