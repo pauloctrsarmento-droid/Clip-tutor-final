@@ -34,6 +34,8 @@ function renderChatMarkdown(text: string): string {
 
   // Bold: **text** → <strong>
   escaped = escaped.replace(/\*\*(.+?)\*\*/g, '<strong class="font-semibold">$1</strong>');
+  // Clean up orphaned ** markers that the LLM didn't close properly
+  escaped = escaped.replace(/\*\*/g, "");
 
   // Process LaTeX (inline $...$ and block $$...$$)
   escaped = processInline(escaped);

@@ -125,9 +125,14 @@ export function MermaidDiagram({ code, title }: MermaidDiagramProps) {
             Rendering diagram...
           </div>
         )}
-        {svgHtml && (
+        {svgHtml ? (
           <div dangerouslySetInnerHTML={{ __html: svgHtml }} />
-        )}
+        ) : !rendering && !error ? (
+          /* Fallback: show code as text if render produced nothing */
+          <pre className="text-xs text-muted-foreground font-mono whitespace-pre-wrap overflow-x-auto">
+            {code}
+          </pre>
+        ) : null}
       </div>
     </div>
   );
