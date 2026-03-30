@@ -133,7 +133,9 @@ function PassageText({ content }: { content: string }) {
       );
       if (splitPoint) {
         instruction = splitPoint[1];
-        passageParas.push(splitPoint[2] + trimmed.slice(splitPoint.index! + splitPoint[0].length - 1));
+        // Everything after the instruction (from the capital letter onwards)
+        const passageStart = trimmed.slice(splitPoint[1].length).trim();
+        if (passageStart) passageParas.push(passageStart);
       } else {
         instruction = trimmed;
       }
