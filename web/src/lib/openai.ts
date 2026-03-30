@@ -102,15 +102,23 @@ export async function callOpenAIStream(
   const encoder = new TextEncoder();
   const decoder = new TextDecoder();
 
-  // Transform the SSE stream into plain text chunks
+  // Transform the SSE stream into plain text chunks.
+  // SSE events can be split across TCP chunks, so we buffer incomplete lines.
+  let lineBuffer = "";
+
   const transformStream = new TransformStream<Uint8Array, Uint8Array>({
     transform(chunk, controller) {
-      const text = decoder.decode(chunk, { stream: true });
-      const lines = text.split("\n");
+      lineBuffer += decoder.decode(chunk, { stream: true });
+
+      // Process complete lines only (terminated by \n)
+      const lines = lineBuffer.split("\n");
+      // Keep the last element — it may be an incomplete line
+      lineBuffer = lines.pop() ?? "";
 
       for (const line of lines) {
-        if (!line.startsWith("data: ")) continue;
-        const data = line.slice(6).trim();
+        const trimmed = line.trim();
+        if (!trimmed.startsWith("data: ")) continue;
+        const data = trimmed.slice(6).trim();
         if (data === "[DONE]") return;
 
         try {
@@ -122,7 +130,29 @@ export async function callOpenAIStream(
             controller.enqueue(encoder.encode(content));
           }
         } catch {
-          // Skip malformed SSE lines
+          // Incomplete JSON — will be completed in next chunk
+        }
+      }
+    },
+    flush(controller) {
+      // Process any remaining buffered data
+      if (lineBuffer.trim()) {
+        const trimmed = lineBuffer.trim();
+        if (trimmed.startsWith("data: ")) {
+          const data = trimmed.slice(6).trim();
+          if (data && data !== "[DONE]") {
+            try {
+              const parsed = JSON.parse(data) as {
+                choices: Array<{ delta: { content?: string } }>;
+              };
+              const content = parsed.choices[0]?.delta?.content;
+              if (content) {
+                controller.enqueue(encoder.encode(content));
+              }
+            } catch {
+              // Final incomplete chunk — nothing to do
+            }
+          }
         }
       }
     },
