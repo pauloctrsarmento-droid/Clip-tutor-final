@@ -19,7 +19,7 @@ export async function POST(request: Request) {
       images: input.images,
     });
 
-    // Pipe the stream to the client, then run post-processing
+    // Pipe the stream to the client
     const response = new Response(stream, {
       headers: {
         "Content-Type": "text/plain; charset=utf-8",
@@ -28,8 +28,7 @@ export async function POST(request: Request) {
       },
     });
 
-    // Run afterStream processing in the background
-    // Using waitUntil pattern for edge runtime, or just fire-and-forget
+    // Run afterStream in the background (saves to DB, resolves diagrams)
     afterStream().catch((err) => {
       console.error("[session/message] afterStream error:", err);
     });

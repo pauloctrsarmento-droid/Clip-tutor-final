@@ -4,7 +4,18 @@
       "Edit(/.claude/skills/code-scaffolder/**)",
       "Edit(/.claude/skills/pr-prep/**)",
       "Edit(/.claude/skills/debug-detective/**)",
-      "Edit(/.claude/skills/refactor-safe/**)"
+      "Edit(/.claude/skills/refactor-safe/**)",
+      "mcp__plugin_playwright_playwright__browser_click",
+      "mcp__plugin_playwright_playwright__browser_type",
+      "mcp__plugin_playwright_playwright__browser_snapshot",
+      "mcp__plugin_playwright_playwright__browser_take_screenshot",
+      "mcp__plugin_playwright_playwright__browser_navigate",
+      "mcp__plugin_playwright_playwright__browser_wait_for",
+      "mcp__plugin_playwright_playwright__browser_run_code",
+      "mcp__plugin_playwright_playwright__browser_press_key",
+      "mcp__plugin_playwright_playwright__browser_file_upload",
+      "mcp__plugin_playwright_playwright__browser_console_messages",
+      "mcp__plugin_playwright_playwright__browser_install"
     ],
     "additionalDirectories": [
       "C:\\Users\\sarma\\.claude"

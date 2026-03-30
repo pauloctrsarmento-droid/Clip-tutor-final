@@ -52,8 +52,25 @@ export function MermaidDiagram({ code, title }: MermaidDiagramProps) {
 
     const id = `mermaid-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
+    // Ensure real newlines (JSON may escape them as literal \n)
+    let cleanCode = code
+      .replace(/\\n/g, "\n")
+      .replace(/\\t/g, "  ")
+      .trim();
+
+    // If code is all on one line, insert newlines before node declarations
+    if (!cleanCode.includes("\n") || cleanCode.split("\n").length < 3) {
+      cleanCode = cleanCode
+        .replace(/\s+([A-Z])\[/g, "\n    $1[")          // A[Label] on new line
+        .replace(/\s+(subgraph)/gi, "\n    $1")           // subgraph on new line
+        .replace(/\s+(end)\b/gi, "\n    $1")              // end on new line
+        .replace(/\s+(style\s)/gi, "\n    $1")            // style on new line
+        .replace(/\s+(linkStyle\s)/gi, "\n    $1")        // linkStyle on new line
+        .trim();
+    }
+
     mermaid
-      .render(id, code.trim())
+      .render(id, cleanCode)
       .then(({ svg }) => {
         // Make SVG responsive by injecting style
         const responsiveSvg = svg.replace(

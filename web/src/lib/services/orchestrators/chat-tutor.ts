@@ -116,7 +116,7 @@ export async function sendMessage(
   options: SendMessageOptions,
 ): Promise<{
   stream: ReadableStream<Uint8Array>;
-  afterStream: () => Promise<void>;
+  afterStream: () => Promise<{ action: TutorAction | null; internal: TutorInternal | null }>;
 }> {
   const { sessionId, message, images, studentId = STUDENT_ID } = options;
 
@@ -221,23 +221,20 @@ export async function sendMessage(
       }
     },
     flush(controller) {
-      // After LLM stream ends, parse the full response and append clean JSON
-      let { action, internal } = parseResponse(fullResponse);
+      // Parse action/internal from full response
+      let action: TutorAction | null = null;
+      let internal: TutorInternal | null = null;
+      const parsed = parseResponse(fullResponse);
+      action = parsed.action ?? extractActionByRegex(fullResponse);
+      internal = parsed.internal;
 
-      // Fallback: if action parsing failed, try regex extraction from raw response
-      if (!action) {
-        action = extractActionByRegex(fullResponse);
-      }
-
-      // For show_diagram with mermaid: mark it for resolution in afterStream
-      // For now, send the action as-is — afterStream will resolve it
       parsedAction = action;
       parsedInternal = internal;
 
+      // Enqueue the raw action (not yet resolved for diagrams)
       const meta: Record<string, unknown> = {};
       if (action) meta.action = action;
       if (internal) meta.internal = internal;
-
       if (Object.keys(meta).length > 0) {
         const jsonStr = "\n<<<ACTION_JSON>>>\n" + JSON.stringify(meta);
         controller.enqueue(encoder.encode(jsonStr));
@@ -249,12 +246,11 @@ export async function sendMessage(
 
   // After-stream processing (called by the API route after stream completes)
   const afterStream = async () => {
-    // Use parsed values from flush(), or re-parse as fallback
+    // Resolve diagrams (Mermaid generation, DALL-E, etc.)
     const { text } = parseResponse(fullResponse);
     let action = parsedAction;
     const internal = parsedInternal;
 
-    // Resolve diagrams (Mermaid code generation, DALL-E image generation)
     if (action) {
       action = await resolveDiagramAction(action, fullResponse);
     }
@@ -294,6 +290,9 @@ export async function sendMessage(
         .update({ running_summary: newSummary })
         .eq("id", sessionId);
     }
+
+    // Return the resolved action so the API route can send it to the frontend
+    return { action, internal };
   };
 
   return { stream: outputStream, afterStream };
@@ -710,10 +709,30 @@ async function resolveDiagramAction(action: TutorAction, fullResponse: string): 
     }
   }
 
-  // If show_content has "Content loading..." or "Generating diagram...", try to make a Mermaid diagram
+  // If show_content has "Content loading..." or "Generating diagram...", generate a Mermaid diagram
   if (action.type === "show_content" && (action.config.content === "Content loading..." || action.config.content === "Generating diagram...")) {
     const generated = await generateMermaidCode(action.config.title, fullResponse);
     return { type: "show_diagram", config: { title: action.config.title, diagram_type: "mermaid", mermaid_code: generated } };
+  }
+
+  // If show_content has content that looks like Mermaid code, convert to show_diagram
+  if (action.type === "show_content" && action.config.content) {
+    const content = action.config.content;
+    const looksLikeMermaid = content.match(/(?:graph\s+(?:LR|TD|TB|BT|RL)|flowchart|sequenceDiagram|classDiagram|pie)/);
+    if (looksLikeMermaid) {
+      // Clean the mermaid code: remove markdown fences
+      const cleaned = content.replace(/```mermaid\n?/g, "").replace(/```\n?/g, "").trim();
+      return { type: "show_diagram", config: { title: action.config.title, diagram_type: "mermaid", mermaid_code: cleaned } };
+    }
+  }
+
+  // If show_content mentions "diagram" in the title but has no useful content, generate one
+  if (action.type === "show_content" && action.config.title && (!action.config.content || action.config.content.length < 20)) {
+    const titleLower = action.config.title.toLowerCase();
+    if (titleLower.includes("diagram") || titleLower.includes("flowchart") || titleLower.includes("transition") || titleLower.includes("comparison")) {
+      const generated = await generateMermaidCode(action.config.title, fullResponse);
+      return { type: "show_diagram", config: { title: action.config.title, diagram_type: "mermaid", mermaid_code: generated } };
+    }
   }
 
   return action;
@@ -723,18 +742,53 @@ async function resolveDiagramAction(action: TutorAction, fullResponse: string): 
 async function generateMermaidCode(title: string, context: string): Promise<string> {
   try {
     const result = await callOpenAI({
-      system: `You generate Mermaid.js diagram code. Return ONLY valid Mermaid code, nothing else. No markdown code fences. No explanation. Just the Mermaid syntax starting with graph, flowchart, sequenceDiagram, classDiagram, or pie.`,
-      user: `Generate a Mermaid diagram for: "${title}"\n\nContext from the tutoring conversation:\n${context.slice(-500)}`,
-      maxTokens: 500,
+      system: `You generate Mermaid.js diagram code. Rules:
+1. Return ONLY valid Mermaid code. No markdown fences, no explanation, no comments.
+2. Start with: graph TD, graph LR, flowchart TD, flowchart LR, sequenceDiagram, classDiagram, or pie
+3. Each statement MUST be on its own line. Never put multiple statements on one line.
+4. Use simple node IDs (A, B, C) with labels in brackets: A[Label]
+5. Use --> for arrows, -->|text| for labeled arrows
+6. Do NOT use semicolons at end of lines
+7. Do NOT use backslashes
+8. Keep it simple — max 15 nodes
+
+Example of VALID code:
+graph TD
+    A[Solid] -->|Melting| B[Liquid]
+    B -->|Boiling| C[Gas]
+    C -->|Condensation| B
+    B -->|Freezing| A`,
+      user: `Generate a Mermaid diagram for: "${title}"\n\nContext:\n${context.slice(-500)}`,
+      maxTokens: 400,
       model: "gpt-4o-mini",
     });
-    // Clean up: remove code fences if present
-    return result
-      .replace(/```mermaid\n?/g, "")
-      .replace(/```\n?/g, "")
-      .trim();
+    // Aggressively clean: extract only the Mermaid code block
+    let cleaned = result;
+    // Remove code fences
+    cleaned = cleaned.replace(/```mermaid\s*/gi, "").replace(/```\s*/g, "");
+    // Find the first line starting with graph/flowchart/sequence/class/pie
+    const lines = cleaned.split("\n");
+    const startIdx = lines.findIndex((l) =>
+      /^\s*(graph|flowchart|sequenceDiagram|classDiagram|pie)\b/i.test(l),
+    );
+    if (startIdx >= 0) {
+      // Take from the graph line until we hit a non-diagram line (empty or explanation text)
+      const diagramLines: string[] = [];
+      for (let i = startIdx; i < lines.length; i++) {
+        const line = lines[i].trim();
+        // Stop at explanation text (lines not starting with diagram keywords or node refs)
+        if (i > startIdx && line && !line.match(/^[\s\w[\]({|}><!&\-=:.#"';,]+$/) && !line.startsWith("subgraph") && !line.startsWith("end") && !line.startsWith("style") && !line.startsWith("linkStyle") && !line.startsWith("class")) {
+          break;
+        }
+        diagramLines.push(lines[i]);
+      }
+      cleaned = diagramLines.join("\n");
+    }
+    // Remove trailing semicolons
+    cleaned = cleaned.replace(/;$/gm, "");
+    return cleaned.trim();
   } catch {
-    return `graph TD\n  A[${title}]\n  A --> B[Could not generate diagram]`;
+    return `graph TD\n    A[${title}]\n    A --> B[Could not generate diagram]`;
   }
 }
 
