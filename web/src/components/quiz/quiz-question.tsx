@@ -101,9 +101,18 @@ export function QuizQuestion({
   );
 }
 
-/** Format passage text with proper paragraph spacing and dialogue styling */
+/** Format passage text: join PDF line breaks into flowing paragraphs */
 function PassageText({ content }: { content: string }) {
-  const paragraphs = content.split(/\n\n|\n/).filter((p) => p.trim());
+  // Step 1: Normalize line breaks
+  // \n\n = real paragraph break (keep)
+  // \n = PDF line wrap within same paragraph (join with space)
+  const normalized = content
+    .replace(/\n\n+/g, "\u0000PARA\u0000")  // mark real paragraph breaks
+    .replace(/\n/g, " ")                      // join single newlines into spaces
+    .replace(/\u0000PARA\u0000/g, "\n\n")    // restore paragraph breaks
+    .replace(/  +/g, " ");                    // collapse multiple spaces
+
+  const paragraphs = normalized.split(/\n\n/).filter((p) => p.trim());
 
   return (
     <>
@@ -111,10 +120,10 @@ function PassageText({ content }: { content: string }) {
         const trimmed = para.trim();
         if (!trimmed) return null;
 
-        // Detect dialogue (starts with « or ")
-        const isDialogue = /^[«"«"]/.test(trimmed);
-        // Detect title/header (short line, < 50 chars, followed by longer content)
-        const isTitle = trimmed.length < 50 && i === 0 && paragraphs.length > 2;
+        // Detect dialogue (contains « » or starts with quote)
+        const isDialogue = /[«»]/.test(trimmed) || /^[""]/.test(trimmed);
+        // Detect title/header (short line at start)
+        const isTitle = trimmed.length < 60 && i === 0 && paragraphs.length > 2;
 
         if (isTitle) {
           return (
