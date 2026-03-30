@@ -125,15 +125,15 @@ export function actionToActivity(
       return {
         type: "quiz",
         subjectCode: fallbackSubject,
-        topicId: action.config.topic_id,
-        numQuestions: action.config.num_questions,
+        topicId: action.config.topic_id || undefined,
+        numQuestions: action.config.num_questions || 6,
       };
     case "launch_flashcards":
       return {
         type: "flashcards",
         subjectCode: fallbackSubject,
-        topicId: action.config.topic_id,
-        count: action.config.count,
+        topicId: action.config.topic_id || undefined,
+        count: action.config.count || 12,
       };
     case "show_content":
       return {

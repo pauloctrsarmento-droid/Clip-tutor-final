@@ -96,7 +96,7 @@ export function useEmbeddedQuiz(options: UseEmbeddedQuizOptions) {
     if (!subjectCode) return;
     startQuiz({
       subject_code: subjectCode,
-      topic_id: topicId,
+      topic_id: topicId || undefined,
       count,
       question_type: questionType,
     })

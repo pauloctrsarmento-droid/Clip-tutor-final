@@ -70,7 +70,7 @@ export function useEmbeddedFlashcards(
     if (!subjectCode) return;
     startFlashcards({
       subject_code: subjectCode,
-      topic_id: topicId,
+      topic_id: topicId || undefined,
       limit,
     })
       .then((data) => {
