@@ -118,10 +118,17 @@ export function cleanParentContext(context: string | null): string | null {
     return true;
   });
 
-  const result = kept
+  let result = kept
     .join("\n")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
+
+  // Remove mark scheme artifacts from parent context too
+  result = result.replace(/\[Total\s*:\s*\d+\]/gi, "");
+  result = result.replace(/\[\d+\]/g, "");
+  result = result.replace(/\[PAUSE\]/gi, "");
+  result = result.replace(/^\d+\s*\.{2,}\s*$/gm, "");
+  result = result.trim();
 
   return result || null;
 }
@@ -138,11 +145,25 @@ export function cleanQuestionText(text: string): string {
   // Remove "[Turn over" / "[Turn over]"
   result = result.replace(/\s*\[Turn over\]?\s*/g, "");
 
+  // Remove mark scheme artifacts: [1], [2], [Total : 12], [PAUSE], etc.
+  result = result.replace(/\[Total\s*:\s*\d+\]/gi, "");
+  result = result.replace(/\[\d+\]/g, "");
+  result = result.replace(/\[PAUSE\]/gi, "");
+
+  // Remove answer space placeholders: "1 ... [1]" → "" or "1 ..." → ""
+  result = result.replace(/^\d+\s*\.{2,}\s*$/gm, "");
+
+  // Remove "(i)" "(ii)" sub-part markers that are orphaned
+  result = result.replace(/^\s*\(i+\)\s*\.{2,}\s*$/gm, "");
+
   // Remove ", ," artifact (empty table cells from PDF)
   result = result.replace(/[,\s]*,\s*,\s*/g, "");
 
   // Remove trailing commas left over
   result = result.replace(/,\s*$/, "");
+
+  // Remove "Exercice X Questions Y-Z" headers from other sections
+  result = result.replace(/Exercice\s+\d+\s+Questions?\s+\d+.*/gi, "");
 
   // Clean up extra whitespace
   result = result.replace(/\n{3,}/g, "\n\n").trim();
