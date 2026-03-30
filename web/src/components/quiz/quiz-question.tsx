@@ -115,21 +115,34 @@ function PassageText({ content }: { content: string }) {
 
   const paragraphs = normalized.split(/\n\n/).filter((p) => p.trim());
 
-  // Step 2: Separate instruction lines from passage content
-  const instructions: string[] = [];
+  // Step 2: Extract instruction from the beginning of text
+  // Instructions like "Lisez le texte. Répondez aux questions..." may be
+  // joined into the first paragraph. Split them out.
+  let instruction = "";
   const passageParas: string[] = [];
 
   for (const para of paragraphs) {
     const trimmed = para.trim();
     if (!trimmed) continue;
 
-    // First few lines that match instruction patterns
-    if (passageParas.length === 0 && INSTRUCTION_PATTERN.test(trimmed)) {
-      instructions.push(trimmed);
+    if (!instruction && INSTRUCTION_PATTERN.test(trimmed)) {
+      // Check if instruction is glued to passage text (no \n\n separator)
+      // Look for instruction ending followed by passage start (e.g. "...français. Salut !")
+      const splitPoint = trimmed.match(
+        /^(.+?(?:français|English|below|suivantes|appropriée|correcte|cases?)\s*[.!])\s+([A-ZÀ-ÖØ-Ý«""])/,
+      );
+      if (splitPoint) {
+        instruction = splitPoint[1];
+        passageParas.push(splitPoint[2] + trimmed.slice(splitPoint.index! + splitPoint[0].length - 1));
+      } else {
+        instruction = trimmed;
+      }
     } else {
       passageParas.push(trimmed);
     }
   }
+
+  const instructions = instruction ? [instruction] : [];
 
   return (
     <>
