@@ -244,6 +244,16 @@ export async function sendMessage(
           }
         }
 
+        // Sanitize action: clean invalid topic_id values
+        if (action && "config" in action && "topic_id" in (action.config as Record<string, unknown>)) {
+          const config = action.config as Record<string, unknown>;
+          const topicId = config.topic_id as string;
+          // Remove empty or non-UUID topic_ids
+          if (!topicId || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(topicId)) {
+            delete config.topic_id;
+          }
+        }
+
         // Append action JSON to stream
         const meta: Record<string, unknown> = {};
         if (action) meta.action = action;
