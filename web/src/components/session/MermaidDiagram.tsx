@@ -28,7 +28,13 @@ function initMermaid() {
       edgeLabelBackground: "#1e293b",
     },
     fontFamily: "inherit",
-    fontSize: 14,
+    fontSize: 16,
+    flowchart: {
+      nodeSpacing: 30,
+      rankSpacing: 50,
+      padding: 15,
+      useMaxWidth: true,
+    },
   });
 }
 
@@ -75,11 +81,10 @@ export function MermaidDiagram({ code, title }: MermaidDiagramProps) {
     mermaid
       .render(id, cleanCode)
       .then(({ svg }) => {
-        // Make SVG responsive by injecting style
-        const responsiveSvg = svg.replace(
-          /<svg /,
-          '<svg style="max-width:100%;height:auto;" ',
-        );
+        // Force SVG to fill container width with readable size
+        const responsiveSvg = svg
+          .replace(/<svg /, '<svg style="width:100%;min-height:300px;height:auto;" ')
+          .replace(/max-width:\s*[\d.]+px/g, "max-width:100%");
         setSvgHtml(responsiveSvg);
         setRendering(false);
       })
@@ -114,7 +119,7 @@ export function MermaidDiagram({ code, title }: MermaidDiagramProps) {
           {title}
         </h3>
       )}
-      <div className="flex items-center justify-center min-h-[100px] rounded-xl bg-card/50 border border-border/30 p-4">
+      <div className="flex items-center justify-center min-h-[350px] rounded-xl bg-card/50 border border-border/30 p-6 overflow-auto">
         {rendering && !svgHtml && (
           <div className="text-sm text-muted-foreground animate-pulse">
             Rendering diagram...
