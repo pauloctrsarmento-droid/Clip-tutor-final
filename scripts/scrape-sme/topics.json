@@ -1,0 +1,146 @@
+[
+  {
+    "chapter": "1. Motion, Forces & Energy",
+    "topicName": "Physical Quantities & Measurement Techniques",
+    "subtopics": "Measurement, Scalars & Vectors, Calculating with Vectors",
+    "basePath": "/igcse/physics/cie/23/topic-questions/1-motion-forces-and-energy/1-1-physical-quantities-and-measurement-techniques/"
+  },
+  {
+    "chapter": "1. Motion, Forces & Energy",
+    "topicName": "Motion",
+    "subtopics": "Speed & Velocity, Acceleration, Distance-Time Graphs, Speed-Time Graphs, Calculating Acceleration from Speed-Time Graphs, Freefall",
+    "basePath": "/igcse/physics/cie/23/topic-questions/1-motion-forces-and-energy/1-2-motion/"
+  },
+  {
+    "chapter": "1. Motion, Forces & Energy",
+    "topicName": "Mass, Weight & Density",
+    "subtopics": "Mass & Weight, Density, Measuring Density, Floating",
+    "basePath": "/igcse/physics/cie/23/topic-questions/1-motion-forces-and-energy/1-3-mass-weight-and-density/"
+  },
+  {
+    "chapter": "1. Motion, Forces & Energy",
+    "topicName": "Effects of Forces",
+    "subtopics": "Resultant Forces, Newton's First Law, Newton's Second Law, Investigating Force & Extension, Hooke's Law, Circular Motion, Friction",
+    "basePath": "/igcse/physics/cie/23/topic-questions/1-motion-forces-and-energy/1-4-effects-of-forces/"
+  },
+  {
+    "chapter": "1. Motion, Forces & Energy",
+    "topicName": "Moments",
+    "subtopics": "Moments, Equilibrium, Centre of Gravity, Investigating Centre of Gravity",
+    "basePath": "/igcse/physics/cie/23/topic-questions/1-motion-forces-and-energy/1-5-moments/"
+  },
+  {
+    "chapter": "1. Motion, Forces & Energy",
+    "topicName": "Momentum",
+    "subtopics": "Momentum, Impulse",
+    "basePath": "/igcse/physics/cie/23/topic-questions/1-motion-forces-and-energy/1-6-momentum/"
+  },
+  {
+    "chapter": "1. Motion, Forces & Energy",
+    "topicName": "Energy, Work & Power",
+    "subtopics": "Energy Stores & Transfers, Kinetic Energy, Gravitational Potential Energy, Conservation of Energy, Work Done, Power, Efficiency",
+    "basePath": "/igcse/physics/cie/23/topic-questions/1-motion-forces-and-energy/1-7-energy-work-and-power/"
+  },
+  {
+    "chapter": "1. Motion, Forces & Energy",
+    "topicName": "Energy Sources",
+    "subtopics": "Energy from the Sun, Energy from Fuels, Energy from Water, Geothermal Energy, Nuclear Fusion",
+    "basePath": "/igcse/physics/cie/23/topic-questions/1-motion-forces-and-energy/1-8-energy-sources/"
+  },
+  {
+    "chapter": "1. Motion, Forces & Energy",
+    "topicName": "Pressure",
+    "subtopics": "Pressure & Forces, Pressure in a Liquid",
+    "basePath": "/igcse/physics/cie/23/topic-questions/1-motion-forces-and-energy/1-9-pressure/"
+  },
+  {
+    "chapter": "2. Thermal Physics",
+    "topicName": "Kinetic Particle Model of Matter",
+    "subtopics": "States of Matter, Molecular Matter, Particle Model of Gases, Brownian Motion, Gases & Absolute Temperature",
+    "basePath": "/igcse/physics/cie/23/topic-questions/2-thermal-physics/2-1-kinetic-particle-model-of-matter/"
+  },
+  {
+    "chapter": "2. Thermal Physics",
+    "topicName": "Thermal Properties & Temperature",
+    "subtopics": "Thermal Expansion, Specific Heat Capacity, Investigating Specific Heat Capacity, Melting & Boiling, Evaporation",
+    "basePath": "/igcse/physics/cie/23/topic-questions/2-thermal-physics/2-2-thermal-properties-and-temperature/"
+  },
+  {
+    "chapter": "2. Thermal Physics",
+    "topicName": "Transfer of Thermal Energy",
+    "subtopics": "Demonstrating Conduction, Thermal Conduction, Convection, Radiation, The Greenhouse Effect, Investigating IR Radiation, Consequences of Thermal Energy Transfer",
+    "basePath": "/igcse/physics/cie/23/topic-questions/2-thermal-physics/2-3-transfer-of-thermal-energy/"
+  },
+  {
+    "chapter": "3. Waves",
+    "topicName": "General Properties of Waves",
+    "subtopics": "Features of Waves, The Wave Equation, Transverse & Longitudinal Waves, Wave Behaviour, Ripple Tank",
+    "basePath": "/igcse/physics/cie/23/topic-questions/3-waves/3-1-general-properties-of-waves/"
+  },
+  {
+    "chapter": "3. Waves",
+    "topicName": "Light",
+    "subtopics": "Reflection of Light, Investigating Reflection, Refraction of Light, Refractive Index, Total Internal Reflection, Ray Diagrams, Real & Virtual Images, Real Images, Virtual Images, Correcting Sight, Dispersion of Light",
+    "basePath": "/igcse/physics/cie/23/topic-questions/3-waves/3-2-light/"
+  },
+  {
+    "chapter": "3. Waves",
+    "topicName": "Electromagnetic Spectrum",
+    "subtopics": "Electromagnetic Waves, Uses of Electromagnetic Waves, Dangers of Electromagnetic Waves, Communications, Digital & Analogue Signals",
+    "basePath": "/igcse/physics/cie/23/topic-questions/3-waves/3-3-electromagnetic-spectrum/"
+  },
+  {
+    "chapter": "3. Waves",
+    "topicName": "Sound",
+    "subtopics": "Sound Waves, Measuring the Speed of Sound, Effects of Sound Waves, Ultrasound",
+    "basePath": "/igcse/physics/cie/23/topic-questions/3-waves/3-4-sound/"
+  },
+  {
+    "chapter": "4. Electricity & Magnetism",
+    "topicName": "Simple Phenomena of Magnetism",
+    "subtopics": "Magnetism, Magnets, Magnetic Fields, Plotting Magnetic Fields",
+    "basePath": "/igcse/physics/cie/23/topic-questions/4-electricity-and-magnetism/4-1-simple-phenomena-of-magnetism/"
+  },
+  {
+    "chapter": "4. Electricity & Magnetism",
+    "topicName": "Electrical Quantities",
+    "subtopics": "Electric Charge, Demonstrating Electric Charges, Electric Fields, Investigating Conductors & Insulators, Current, Direct & Alternating Current, Electromotive Force, Potential Difference, Resistance, Resistance of a Wire, Electrical Energy, Electrical Power",
+    "basePath": "/igcse/physics/cie/23/topic-questions/4-electricity-and-magnetism/4-2-electrical-quantities/"
+  },
+  {
+    "chapter": "4. Electricity & Magnetism",
+    "topicName": "Electric Circuits & Electrical Safety",
+    "subtopics": "Circuit Diagrams & Circuit Components, Current in Circuits, EMF & Potential Difference in Circuits, Combined Resistance, Potential Dividers, Electrical Safety",
+    "basePath": "/igcse/physics/cie/23/topic-questions/4-electricity-and-magnetism/4-3-electric-circuits-and-electrical-safety/"
+  },
+  {
+    "chapter": "4. Electricity & Magnetism",
+    "topicName": "Electromagnetic Effects",
+    "subtopics": "Electromagnetic Induction, Demonstrating Induction, The A.C. Generator, Magnetic Effect of a Current, Investigating the Field Around a Wire, Force on a Current-Carrying Conductor, Electric Motors, Transformers, Transformer Calculations",
+    "basePath": "/igcse/physics/cie/23/topic-questions/4-electricity-and-magnetism/4-4-electromagnetic-effects/"
+  },
+  {
+    "chapter": "5. Nuclear Physics",
+    "topicName": "The Nuclear Model of the Atom",
+    "subtopics": "The Atom, The Nucleus, Protons, Neutrons & Electrons, Fission & Fusion",
+    "basePath": "/igcse/physics/cie/23/topic-questions/5-nuclear-physics/5-1-the-nuclear-model-of-the-atom/"
+  },
+  {
+    "chapter": "5. Nuclear Physics",
+    "topicName": "Radioactivity",
+    "subtopics": "Background Radiation, Types of Radiation, Ionising Power & Deflection, Radioactive Decay, Half-Life, Uses of Radiation, Dangers of Radiation",
+    "basePath": "/igcse/physics/cie/23/topic-questions/5-nuclear-physics/5-2-radioactivity/"
+  },
+  {
+    "chapter": "6. Space Physics",
+    "topicName": "Earth & The Solar System",
+    "subtopics": "The Earth, Moon & Sun, The Solar System, Formation of the Solar System, Light Speed Calculations, Gravitational Field Strength, Orbital Speed Equation, Elliptical Orbits",
+    "basePath": "/igcse/physics/cie/23/topic-questions/6-space-physics/6-1-earth-and-the-solar-system/"
+  },
+  {
+    "chapter": "6. Space Physics",
+    "topicName": "Stars & The Universe",
+    "subtopics": "The Sun as a Star, The Scale of the Universe, Star Formation, Life Cycle of a Star, Galactic Redshift, The Big Bang Theory, Age of the Universe",
+    "basePath": "/igcse/physics/cie/23/topic-questions/6-space-physics/6-2-stars-and-the-universe/"
+  }
+]

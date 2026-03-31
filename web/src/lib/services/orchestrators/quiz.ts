@@ -96,7 +96,7 @@ export async function startQuizSession(options: {
   // Build query
   let query = supabaseAdmin
     .from("exam_questions")
-    .select("id, question_text, marks, response_type, question_type, correct_answer, mark_scheme, parent_context, has_diagram, fig_refs, table_refs, paper_id")
+    .select("id, question_text, marks, response_type, question_type, correct_answer, mark_scheme, parent_context, has_diagram, fig_refs, table_refs, paper_id, syllabus_topic_id")
     .eq("subject_code", subjectCode)
     .eq("is_stem", false)
     .eq("evaluation_ready", true);
@@ -144,9 +144,13 @@ export async function startQuizSession(options: {
     const tableRefs = (q.table_refs as string[]) ?? [];
     const paperId = q.paper_id as string;
 
-    const diagramUrls = (q.has_diagram || figRefs.length > 0)
-      ? getQuestionDiagramUrls(paperId, figRefs, tableRefs)
-      : [];
+    // SME questions store CDN URLs directly in fig_refs; Cambridge uses fig ref codes like "3.1"
+    const isSme = (paperId as string).startsWith("sme_");
+    const diagramUrls = isSme
+      ? figRefs.filter((r: string) => r.startsWith("http"))  // SME: raw CDN URLs in fig_refs
+      : (q.has_diagram || figRefs.length > 0)
+        ? getQuestionDiagramUrls(paperId, figRefs, tableRefs)  // Cambridge: Supabase Storage
+        : [];
 
     // Parse MCQ options from mark_scheme
     let options: Record<string, string> | null = null;
