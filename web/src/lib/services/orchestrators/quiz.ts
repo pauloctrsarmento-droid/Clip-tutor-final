@@ -360,7 +360,7 @@ export async function endQuizSession(options: {
 // ── Question Answerability Filter ─────────────────────────────
 
 // Question DEPENDS on seeing an image to answer
-const NEEDS_IMAGE = /\b(regardez|panneaux|look at the|see the|shown in the|in the diagram|in the figure|the picture shows|the image shows|the graph shows|the table shows|from the graph|from the diagram|from the figure|les images|la photo|l['']image montre|cochez.*case|bonne lettre|tick.*box|correct letter)\b/i;
+const NEEDS_IMAGE = /\b(look at the|see the|shown in the|in the diagram|in the figure|the picture shows|the image shows|the graph shows|the table shows|from the graph|from the diagram|from the figure|tick.*box|correct letter)\b/i;
 
 // Student must draw/sketch (instructions, not image dependencies)
 const IS_INSTRUCTION = /\b(draw a|sketch a|complete the diagram|label the diagram|plot a graph|dessinez|tracez)\b/i;

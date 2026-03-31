@@ -145,6 +145,16 @@ export function cleanQuestionText(text: string): string {
   // Remove "[Turn over" / "[Turn over]"
   result = result.replace(/\s*\[Turn over\]?\s*/g, "");
 
+  // Convert roman numeral sub-parts to numbered format: (i) → 1., (ii) → 2., etc.
+  const romanMap: Record<string, string> = {
+    "i": "1", "ii": "2", "iii": "3", "iv": "4",
+    "v": "5", "vi": "6", "vii": "7", "viii": "8",
+  };
+  result = result.replace(/\(([iv]+)\)/gi, (_, r) => {
+    const num = romanMap[r.toLowerCase()];
+    return num ? `${num}.` : `(${r})`;
+  });
+
   // Remove mark scheme artifacts: [1], [2], [Total : 12], [PAUSE], etc.
   result = result.replace(/\[Total\s*:\s*\d+\]/gi, "");
   result = result.replace(/\[\d+\]/g, "");
