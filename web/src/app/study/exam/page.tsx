@@ -230,6 +230,21 @@ export default function ExamPage() {
               </Button>
             )}
 
+            {/* Reading material / Insert booklet — Portuguese has separate text booklet */}
+            {selectedPaper.qp_url && selectedPaper.subject_code === "0504" && (
+              <Button
+                variant="outline"
+                className="w-full cursor-pointer gap-1.5"
+                onClick={() => {
+                  const inUrl = selectedPaper.qp_url!.replace("/qp.pdf", "/in.pdf");
+                  window.open(inUrl, "_blank", "noopener,noreferrer");
+                }}
+              >
+                <ExternalLink className="w-4 h-4" />
+                Open Reading Material
+              </Button>
+            )}
+
             {error && (
               <p className="text-sm text-red-400 text-center">{error}</p>
             )}
