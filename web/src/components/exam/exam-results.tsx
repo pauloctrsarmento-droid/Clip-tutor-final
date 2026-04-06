@@ -11,6 +11,8 @@ import {
   RotateCcw,
   FileText,
   AlertTriangle,
+  PenLine,
+  MessageSquare,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { ExamResults as ExamResultsType, ExamQuestionResult } from "./types";
@@ -88,30 +90,67 @@ function QuestionCard({
       </button>
 
       {expanded && (
-        <div className="px-4 pb-4 space-y-3 border-t border-border pt-3">
+        <div className="px-4 pb-4 space-y-4 border-t border-border pt-3">
+          {/* Student's answer (what AI read from handwriting) */}
+          {question.read_text && (
+            <div className="space-y-1.5">
+              <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                <PenLine className="w-3 h-3" />
+                Your answer
+              </div>
+              <div className="bg-muted/30 border-l-2 border-primary/30 rounded-r-lg px-4 py-3">
+                <p className="text-sm text-foreground leading-relaxed italic whitespace-pre-wrap">
+                  {question.read_text}
+                </p>
+              </div>
+            </div>
+          )}
+
           {/* Mark breakdown */}
           {question.mark_breakdown.length > 0 && (
             <div className="space-y-1.5">
-              {question.mark_breakdown.map((point, i) => (
-                <div key={i} className="flex items-start gap-2 text-sm">
-                  {point.awarded ? (
-                    <Check className="w-4 h-4 text-emerald-400 mt-0.5 shrink-0" />
-                  ) : (
-                    <X className="w-4 h-4 text-red-400 mt-0.5 shrink-0" />
-                  )}
-                  <span className={cn(point.awarded ? "text-foreground" : "text-muted-foreground")}>
-                    {point.point}
-                  </span>
-                </div>
-              ))}
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                Marking
+              </p>
+              <div className="space-y-1">
+                {question.mark_breakdown.map((point, i) => (
+                  <div
+                    key={i}
+                    className={cn(
+                      "flex items-start gap-2 text-sm rounded-lg px-3 py-1.5",
+                      point.awarded ? "bg-emerald-500/5" : "bg-red-500/5"
+                    )}
+                  >
+                    {point.awarded ? (
+                      <Check className="w-4 h-4 text-emerald-400 mt-0.5 shrink-0" />
+                    ) : (
+                      <X className="w-4 h-4 text-red-400 mt-0.5 shrink-0" />
+                    )}
+                    <span className={cn(
+                      "leading-relaxed",
+                      point.awarded ? "text-foreground" : "text-muted-foreground"
+                    )}>
+                      {point.point}
+                    </span>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
 
           {/* Feedback */}
           {question.feedback && (
-            <p className="text-sm text-muted-foreground leading-relaxed">
-              {question.feedback}
-            </p>
+            <div className="space-y-1.5">
+              <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                <MessageSquare className="w-3 h-3" />
+                Feedback
+              </div>
+              <div className="bg-primary/5 border border-primary/10 rounded-lg px-4 py-3">
+                <p className="text-sm text-foreground leading-relaxed">
+                  {question.feedback}
+                </p>
+              </div>
+            </div>
           )}
         </div>
       )}
