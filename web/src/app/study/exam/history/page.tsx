@@ -174,7 +174,6 @@ export default function ExamHistoryPage() {
               const Icon = meta.icon;
               const subjectName = SUBJECT_NAMES[subject] ?? subject;
               const pct = entry.percentage ?? 0;
-              const grade = gradeFromPercentage(pct);
 
               return (
                 <motion.button
@@ -221,14 +220,9 @@ export default function ExamHistoryPage() {
                     <p className="text-lg font-bold tabular-nums text-foreground">
                       {entry.total_marks ?? 0}/{entry.max_marks ?? 0}
                     </p>
-                    <div className="flex items-center gap-2 justify-end mt-0.5">
-                      <span className="text-xs text-muted-foreground tabular-nums">
-                        {pct.toFixed(0)}%
-                      </span>
-                      <Badge className={cn("text-[10px] border px-1.5", gradeColor(grade))}>
-                        {grade}
-                      </Badge>
-                    </div>
+                    <span className="text-xs text-muted-foreground tabular-nums mt-0.5">
+                      {pct.toFixed(0)}%
+                    </span>
                   </div>
 
                   <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />
