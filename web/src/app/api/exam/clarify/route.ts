@@ -2,6 +2,8 @@ import { errorResponse } from "@/lib/errors";
 import { clarifyAnswers } from "@/lib/services/orchestrators/exam-practice";
 import { z } from "zod";
 
+export const maxDuration = 60;
+
 const schema = z.object({
   session_id: z.string().uuid(),
   clarifications: z.array(

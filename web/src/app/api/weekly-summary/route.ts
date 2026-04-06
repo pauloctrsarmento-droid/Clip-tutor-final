@@ -4,6 +4,8 @@ import { getOverview, getSubjectMastery } from "@/lib/services/dashboard";
 import { getWeekPlan, getExamCalendar } from "@/lib/services/study-plan";
 import { STUDY_SUBJECTS } from "@/lib/constants";
 
+export const maxDuration = 60;
+
 export async function GET() {
   try {
     const [overview, subjects, weekPlan, exams] = await Promise.all([

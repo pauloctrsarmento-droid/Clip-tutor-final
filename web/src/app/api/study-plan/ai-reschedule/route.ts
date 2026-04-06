@@ -3,6 +3,8 @@ import { verifyPin } from "@/lib/auth";
 import { aiRescheduleSchema } from "@/lib/validators/study-plan";
 import { generateRescheduleProposal } from "@/lib/services/ai-reschedule";
 
+export const maxDuration = 60;
+
 export async function POST(request: Request) {
   try {
     await verifyPin(request);

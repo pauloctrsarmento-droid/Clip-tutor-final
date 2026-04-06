@@ -2,6 +2,8 @@ import { errorResponse } from "@/lib/errors";
 import { sendMessage } from "@/lib/services/orchestrators/chat-tutor";
 import { z } from "zod";
 
+export const maxDuration = 60;
+
 const schema = z.object({
   session_id: z.string().uuid(),
   message: z.string().min(1),

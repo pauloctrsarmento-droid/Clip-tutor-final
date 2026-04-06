@@ -2,6 +2,9 @@ import { errorResponse, ValidationError } from "@/lib/errors";
 import { submitPhotos } from "@/lib/services/orchestrators/exam-practice";
 import { supabaseAdmin } from "@/lib/supabase-server";
 
+// Allow up to 60s for GPT-4o vision marking
+export const maxDuration = 60;
+
 const MAX_PHOTOS = 10;
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 

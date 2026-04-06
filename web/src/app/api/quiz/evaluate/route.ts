@@ -2,6 +2,8 @@ import { errorResponse } from "@/lib/errors";
 import { evaluateAnswer } from "@/lib/services/orchestrators/quiz";
 import { z } from "zod";
 
+export const maxDuration = 60;
+
 const schema = z.object({
   session_id: z.string().uuid(),
   question_id: z.string().min(1),
