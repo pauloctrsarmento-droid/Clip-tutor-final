@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { AlertCircle } from "lucide-react";
@@ -118,6 +118,19 @@ export default function StudyHomePage() {
   const { overview, subjects, today, exams } = data;
   const hasBlocks = today.today.length > 0;
 
+  const startBlock = useCallback((block: StudyPlanEntry) => {
+    if (block.title.toLowerCase().includes("past paper")) {
+      const title = block.title.toLowerCase();
+      let url = `/study/exam?subject=${block.subject_code}`;
+      if (title.includes("writing")) url += "&component=writing";
+      else if (title.includes("reading")) url += "&component=reading";
+      else if (title.includes("listening")) url += "&component=listening";
+      router.push(url);
+    } else {
+      setShowMoodCheck(true);
+    }
+  }, [router]);
+
   return (
     <div className="space-y-5">
       {/* Header */}
@@ -137,17 +150,13 @@ export default function StudyHomePage() {
           const nextBlock = today.today.find(
             (b) => b.status === "pending" && !NON_STUDY.has(b.subject_code)
           );
-          if (nextBlock && nextBlock.title.toLowerCase().includes("past paper")) {
-            const title = nextBlock.title.toLowerCase();
-            let url = `/study/exam?subject=${nextBlock.subject_code}`;
-            if (title.includes("writing")) url += "&component=writing";
-            else if (title.includes("reading")) url += "&component=reading";
-            else if (title.includes("listening")) url += "&component=listening";
-            router.push(url);
+          if (nextBlock) {
+            startBlock(nextBlock);
           } else {
             setShowMoodCheck(true);
           }
         }}
+        onStartBlock={startBlock}
       />
 
       {/* Exam Timeline — full width */}

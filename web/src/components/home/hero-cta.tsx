@@ -26,13 +26,14 @@ interface HeroCtaProps {
   overview: DashboardOverview;
   exams: ExamCalendarEntry[];
   onStartSession: () => void;
+  onStartBlock?: (block: StudyPlanEntry) => void;
   pausedSessionId?: string | null;
   onResumeSession?: () => void;
 }
 
 const NON_STUDY_SUBJECTS = new Set(["PERSONAL", "ART"]);
 
-export function HeroCta({ blocks, overview, exams, onStartSession, pausedSessionId, onResumeSession }: HeroCtaProps) {
+export function HeroCta({ blocks, overview, exams, onStartSession, onStartBlock, pausedSessionId, onResumeSession }: HeroCtaProps) {
   const studyBlocks = blocks.filter((b) => !NON_STUDY_SUBJECTS.has(b.subject_code));
   const allDone = studyBlocks.length > 0 && studyBlocks.every((b) => b.status === "done");
   const noBlocks = studyBlocks.length === 0;
@@ -202,17 +203,18 @@ export function HeroCta({ blocks, overview, exams, onStartSession, pausedSession
         </div>
       </button>
 
-      {/* Remaining study blocks */}
+      {/* Remaining study blocks — clickable */}
       {pendingStudyBlocks.length > 1 && (
         <div className="flex flex-wrap items-center gap-2 px-1">
-          <span className="text-[10px] text-muted-foreground/60 mr-1">Up next:</span>
+          <span className="text-[10px] text-muted-foreground/60 mr-1">Or choose:</span>
           {pendingStudyBlocks.slice(1).map((block) => {
             const meta = getSubjectMeta(block.subject_code);
             const name = SUBJECT_NAMES[block.subject_code] ?? block.subject_code;
             return (
-              <span
+              <button
                 key={block.id}
-                className="inline-flex items-center gap-1.5 rounded-full bg-card border border-border px-3 py-1 text-xs text-muted-foreground"
+                onClick={() => onStartBlock?.(block)}
+                className="inline-flex items-center gap-1.5 rounded-full bg-card border border-border px-3 py-1 text-xs text-muted-foreground cursor-pointer hover:border-primary/30 hover:bg-primary/5 transition-colors"
               >
                 <span
                   className={cn("w-2 h-2 rounded-full bg-gradient-to-br", meta.gradient)}
@@ -220,7 +222,7 @@ export function HeroCta({ blocks, overview, exams, onStartSession, pausedSession
                 />
                 <span className="font-medium text-foreground">{name}</span>
                 <span className="text-muted-foreground/60">{block.title}</span>
-              </span>
+              </button>
             );
           })}
         </div>
