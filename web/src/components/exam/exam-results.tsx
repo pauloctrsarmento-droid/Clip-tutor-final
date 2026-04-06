@@ -12,7 +12,10 @@ import {
   FileText,
   AlertTriangle,
   PenLine,
-  MessageSquare,
+  AlertCircle,
+  ThumbsUp,
+  Lightbulb,
+  ArrowRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { ExamResults as ExamResultsType, ExamQuestionResult } from "./types";
@@ -21,6 +24,37 @@ interface ExamResultsProps {
   results: ExamResultsType;
   onAnother: () => void;
   onViewMarkScheme: () => void;
+}
+
+/** Parse structured feedback: "ERRORS: ... POSITIVES: ... TIP: ..." */
+function parseFeedback(raw: string): { errors: string[]; positives: string; tip: string; plain: string | null } {
+  const errorsMatch = raw.match(/ERRORS?:\s*([\s\S]*?)(?=POSITIVES?:|TIP:|$)/i);
+  const positivesMatch = raw.match(/POSITIVES?:\s*([\s\S]*?)(?=TIP:|$)/i);
+  const tipMatch = raw.match(/TIP:\s*([\s\S]*?)$/i);
+
+  if (!errorsMatch && !positivesMatch && !tipMatch) {
+    return { errors: [], positives: "", tip: "", plain: raw };
+  }
+
+  // Parse individual errors from the ERRORS section
+  const errorsRaw = errorsMatch?.[1]?.trim() ?? "";
+  const errors = errorsRaw
+    .split(/(?:',\s*'|'\.\s+'|;\s+)/)
+    .map((e) => e.replace(/^['"]|['"]$/g, "").trim())
+    .filter((e) => e.length > 3 && e.includes("→"));
+
+  // If no arrow-separated errors found, try splitting by comma
+  const finalErrors = errors.length > 0 ? errors : errorsRaw
+    .split(/,\s*(?='[a-zà-ü])/)
+    .map((e) => e.replace(/^['"]|['"]$/g, "").trim())
+    .filter((e) => e.length > 5);
+
+  return {
+    errors: finalErrors,
+    positives: positivesMatch?.[1]?.trim() ?? "",
+    tip: tipMatch?.[1]?.trim() ?? "",
+    plain: null,
+  };
 }
 
 function gradeColor(grade: string | null): string {
@@ -138,20 +172,83 @@ function QuestionCard({
             </div>
           )}
 
-          {/* Feedback */}
-          {question.feedback && (
-            <div className="space-y-1.5">
-              <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                <MessageSquare className="w-3 h-3" />
-                Feedback
+          {/* Structured Feedback */}
+          {question.feedback && (() => {
+            const fb = parseFeedback(question.feedback);
+
+            if (fb.plain) {
+              return (
+                <div className="bg-primary/5 border border-primary/10 rounded-lg px-4 py-3">
+                  <p className="text-sm text-foreground leading-relaxed">{fb.plain}</p>
+                </div>
+              );
+            }
+
+            return (
+              <div className="space-y-3">
+                {/* Errors */}
+                {fb.errors.length > 0 && (
+                  <div className="space-y-1.5">
+                    <div className="flex items-center gap-1.5 text-xs font-medium text-red-400 uppercase tracking-wider">
+                      <AlertCircle className="w-3 h-3" />
+                      Corrections ({fb.errors.length})
+                    </div>
+                    <div className="bg-red-500/5 border border-red-500/10 rounded-lg px-4 py-3 space-y-2">
+                      {fb.errors.map((err, i) => {
+                        const parts = err.split("→").map((s) => s.trim());
+                        const explanation = parts[1]?.match(/\(([^)]+)\)$/);
+                        const corrected = explanation ? parts[1].replace(explanation[0], "").trim() : parts[1];
+
+                        return (
+                          <div key={i} className="flex items-start gap-2 text-sm">
+                            <ArrowRight className="w-3.5 h-3.5 text-red-400 mt-0.5 shrink-0" />
+                            <div>
+                              <span className="text-red-400 line-through">{parts[0]?.replace(/^'|'$/g, "")}</span>
+                              {corrected && (
+                                <>
+                                  {" → "}
+                                  <span className="text-emerald-400 font-medium">{corrected.replace(/^'|'$/g, "")}</span>
+                                </>
+                              )}
+                              {explanation?.[1] && (
+                                <span className="text-muted-foreground text-xs ml-1.5">({explanation[1]})</span>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* Positives */}
+                {fb.positives && (
+                  <div className="space-y-1.5">
+                    <div className="flex items-center gap-1.5 text-xs font-medium text-emerald-400 uppercase tracking-wider">
+                      <ThumbsUp className="w-3 h-3" />
+                      Well done
+                    </div>
+                    <div className="bg-emerald-500/5 border border-emerald-500/10 rounded-lg px-4 py-3">
+                      <p className="text-sm text-foreground leading-relaxed">{fb.positives}</p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Tip */}
+                {fb.tip && (
+                  <div className="space-y-1.5">
+                    <div className="flex items-center gap-1.5 text-xs font-medium text-amber-400 uppercase tracking-wider">
+                      <Lightbulb className="w-3 h-3" />
+                      Study tip
+                    </div>
+                    <div className="bg-amber-500/5 border border-amber-500/10 rounded-lg px-4 py-3">
+                      <p className="text-sm text-foreground leading-relaxed">{fb.tip}</p>
+                    </div>
+                  </div>
+                )}
               </div>
-              <div className="bg-primary/5 border border-primary/10 rounded-lg px-4 py-3">
-                <p className="text-sm text-foreground leading-relaxed">
-                  {question.feedback}
-                </p>
-              </div>
-            </div>
-          )}
+            );
+          })()}
         </div>
       )}
     </motion.div>
