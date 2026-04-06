@@ -65,15 +65,28 @@ export function FlashcardCard({
           )}
           style={{ perspective: "1200px" }}
         >
+          {/* Question (always visible on back) */}
+          <div className="mb-4 pb-4 border-b border-border/50">
+            <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/60 mb-1.5">Question</p>
+            <RichText
+              content={front}
+              className="text-base leading-relaxed font-medium"
+            />
+          </div>
+
+          {/* Answer / Explanation */}
           {loading ? (
-            <div className="flex items-center justify-center min-h-[200px]">
+            <div className="flex items-center justify-center min-h-[120px]">
               <Loader2 className="w-6 h-6 text-muted-foreground animate-spin" />
             </div>
           ) : explanation ? (
-            <RichText
-              content={explanation}
-              className="text-sm leading-relaxed text-muted-foreground [&_strong]:text-foreground"
-            />
+            <div>
+              <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/60 mb-1.5">Answer</p>
+              <RichText
+                content={explanation}
+                className="text-sm leading-relaxed text-muted-foreground [&_strong]:text-foreground"
+              />
+            </div>
           ) : (
             <p className="text-muted-foreground text-center py-8">
               No explanation available
