@@ -12,6 +12,7 @@ interface CallOpenAIOptions {
   maxTokens?: number;
   jsonMode?: boolean;
   model?: string;
+  temperature?: number;
 }
 
 interface OpenAIResponse {
@@ -170,6 +171,7 @@ export async function callOpenAI(options: CallOpenAIOptions): Promise<string> {
     maxTokens = 4096,
     jsonMode = false,
     model = OPENAI_MODEL,
+    temperature,
   } = options;
 
   const apiKey = process.env.OPENAI_API_KEY;
@@ -188,6 +190,10 @@ export async function callOpenAI(options: CallOpenAIOptions): Promise<string> {
       { role: "user", content: userContent },
     ],
   };
+
+  if (temperature !== undefined) {
+    body.temperature = temperature;
+  }
 
   if (jsonMode) {
     body.response_format = { type: "json_object" };

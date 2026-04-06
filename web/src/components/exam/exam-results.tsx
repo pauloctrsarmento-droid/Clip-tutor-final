@@ -26,31 +26,76 @@ interface ExamResultsProps {
   onViewMarkScheme: () => void;
 }
 
+function extractErrors(errorsRaw: string): string[] {
+  if (!errorsRaw || errorsRaw.toLowerCase().includes("aucune") || errorsRaw.toLowerCase() === "none." || errorsRaw.length < 5) return [];
+
+  // Strategy 1: Split by newlines (preferred — one error per line)
+  const byNewline = errorsRaw
+    .split(/\n/)
+    .map((e) => e.trim())
+    .filter((e) => e.length > 3 && e.includes("\u2192"));
+
+  if (byNewline.length > 1) return byNewline;
+
+  // Strategy 2: Split by comma/semicolon before a quote mark that starts a new error
+  const bySeparator = errorsRaw
+    .split(/(?:,\s*'|;\s*')/)
+    .map((e, i) => (i > 0 ? "'" + e : e).trim())
+    .filter((e) => e.length > 3 && e.includes("\u2192"));
+
+  if (bySeparator.length > 1) return bySeparator;
+
+  // Strategy 3: Split by ), ' pattern (end of explanation, start of next error)
+  const byParen = errorsRaw
+    .split(/\),\s*'/)
+    .map((e, i) => {
+      let cleaned = e.trim();
+      if (i > 0) cleaned = "'" + cleaned;
+      if (i < errorsRaw.split(/\),\s*'/).length - 1 && !cleaned.endsWith(")")) cleaned += ")";
+      return cleaned;
+    })
+    .filter((e) => e.length > 5 && e.includes("\u2192"));
+
+  if (byParen.length > 1) return byParen;
+
+  // Fallback: return as single error if it has an arrow
+  if (errorsRaw.includes("\u2192")) return [errorsRaw.trim()];
+
+  return [];
+}
+
 /** Parse structured feedback: "ERRORS: ... POSITIVES: ... TIP: ..." */
 function parseFeedback(raw: string): { errors: string[]; positives: string; tip: string; plain: string | null } {
-  const errorsMatch = raw.match(/ERRORS?:\s*([\s\S]*?)(?=POSITIVES?:|TIP:|$)/i);
-  const positivesMatch = raw.match(/POSITIVES?:\s*([\s\S]*?)(?=TIP:|$)/i);
-  const tipMatch = raw.match(/TIP:\s*([\s\S]*?)$/i);
+  // Normalize: ensure POSITIVES/POSITIFS always starts on its own "line" for reliable splitting
+  const normalized = raw
+    .replace(/\.\s*POSITI[FV]S?:/gi, ".\nPOSITIFS:")
+    .replace(/\)\s*POSITI[FV]S?:/gi, ")\nPOSITIFS:")
+    .replace(/\.\s*TIP:/gi, ".\nTIP:")
+    .replace(/\.\s*CONSEIL:/gi, ".\nCONSEIL:");
+
+  const errorsMatch = normalized.match(/(?:ERRORS?|ERREURS?):\s*([\s\S]*?)(?=POSITI[FV]S?:|TIP:|CONSEIL:|$)/i);
+  const positivesMatch = normalized.match(/(?:POSITI[FV]S?|WELL DONE):\s*([\s\S]*?)(?=TIP:|CONSEIL:|$)/i);
+  const tipMatch = normalized.match(/(?:TIP|CONSEIL):\s*([\s\S]*?)$/i);
 
   if (!errorsMatch && !positivesMatch && !tipMatch) {
-    return { errors: [], positives: "", tip: "", plain: raw };
+    // Also check for abbreviated format: "ERR:" or "PS:"
+    const errAbbrev = raw.match(/ERR[^A-Z]*:\s*([\s\S]*?)(?=PS:|POSITIF|TIP:|CONSEIL:|$)/i);
+    const psAbbrev = raw.match(/(?:PS|POSITIF)[^:]*:\s*([\s\S]*?)(?=TIP:|CONSEIL:|$)/i);
+    const tipAbbrev = raw.match(/(?:TIP|CONSEIL):\s*([\s\S]*?)$/i);
+    if (!errAbbrev && !psAbbrev && !tipAbbrev) {
+      return { errors: [], positives: "", tip: "", plain: raw };
+    }
+    // Use abbreviated matches
+    return {
+      errors: extractErrors(errAbbrev?.[1]?.trim() ?? ""),
+      positives: psAbbrev?.[1]?.trim() ?? "",
+      tip: tipAbbrev?.[1]?.trim() ?? "",
+      plain: null,
+    };
   }
 
-  // Parse individual errors from the ERRORS section
-  const errorsRaw = errorsMatch?.[1]?.trim() ?? "";
-  const errors = errorsRaw
-    .split(/(?:',\s*'|'\.\s+'|;\s+)/)
-    .map((e) => e.replace(/^['"]|['"]$/g, "").trim())
-    .filter((e) => e.length > 3 && e.includes("→"));
-
-  // If no arrow-separated errors found, try splitting by comma
-  const finalErrors = errors.length > 0 ? errors : errorsRaw
-    .split(/,\s*(?='[a-zà-ü])/)
-    .map((e) => e.replace(/^['"]|['"]$/g, "").trim())
-    .filter((e) => e.length > 5);
-
   return {
-    errors: finalErrors,
+    errors: extractErrors(errorsMatch?.[1]?.trim() ?? ""),
     positives: positivesMatch?.[1]?.trim() ?? "",
     tip: tipMatch?.[1]?.trim() ?? "",
     plain: null,

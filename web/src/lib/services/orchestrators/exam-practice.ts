@@ -312,7 +312,56 @@ export async function submitPhotos(options: {
     .replace(/\{\{language\}\}/g, language)
     .replace(/\{\{language_instruction\}\}/g, languageInstruction);
 
-  // Fetch cached mark scheme images (converted from PDF by scripts/convert-ms-to-images.py)
+  // ── STEP 1: TRANSCRIPTION (GPT-4o vision — reads handwriting only) ──
+
+  console.log("\n" + "=".repeat(60));
+  console.log("STEP 1: TRANSCRIPTION");
+  console.log("=".repeat(60));
+  console.log("Paper:", paperInfo.id, "Photos:", photoUrls.length);
+
+  const transcriptionContent: VisionContentPart[] = [
+    {
+      type: "text",
+      text: `Transcribe ALL handwritten text visible in these photos, in the order it appears. Include EVERYTHING — headings, numbers, form fields, essays, notes. Preserve all errors, misspellings, and grammatical mistakes exactly as written. Do NOT correct, summarise, or skip anything.
+
+Respond in JSON:
+{
+  "full_transcription": "the complete text from all photos in order..."
+}`,
+    },
+    ...photoUrls.map((url) => ({
+      type: "image_url" as const,
+      image_url: { url, detail: "high" as const },
+    })),
+  ];
+
+  const transcriptionResponse = await callOpenAI({
+    system: "You are an expert handwriting transcription assistant. Your only job is to read handwriting and output the exact text. Preserve every error, accent, and formatting. Do not interpret or correct.",
+    user: transcriptionContent,
+    jsonMode: true,
+    maxTokens: 4096,
+    model: "gpt-4o",
+    temperature: 0,
+  });
+
+  let fullTranscription = "";
+  try {
+    const tParsed = JSON.parse(transcriptionResponse);
+    fullTranscription = tParsed.full_transcription ?? "";
+  } catch {
+    console.error("Transcription parse error:", transcriptionResponse.slice(0, 300));
+  }
+
+  console.log("Transcription length:", fullTranscription.length, "chars");
+  console.log("First 200 chars:", fullTranscription.slice(0, 200));
+
+  // ── STEP 2: MARKING (GPT-4o text — marks transcribed text against mark scheme) ──
+
+  console.log("\n" + "=".repeat(60));
+  console.log("STEP 2: MARKING");
+  console.log("=".repeat(60));
+
+  // Fetch cached mark scheme images
   const msImageUrls: string[] = [];
   try {
     const { data: msFiles } = await supabaseAdmin.storage
@@ -330,45 +379,47 @@ export async function submitPhotos(options: {
       }
     }
   } catch {
-    // No cached images — fall back to text-only marking
+    // No cached images
   }
 
-  // Build vision content: mark scheme images + student photos
-  const userContent: VisionContentPart[] = [];
+  console.log("MS images:", msImageUrls.length);
+
+  // Build marking content: mark scheme images + transcribed text
+  const markingContent: VisionContentPart[] = [];
 
   if (msImageUrls.length > 0) {
-    userContent.push({
+    markingContent.push({
       type: "text",
       text: "MARK SCHEME (use these level descriptors and rubric tables to award marks accurately):",
     });
     for (const url of msImageUrls) {
-      userContent.push({
+      markingContent.push({
         type: "image_url",
         image_url: { url, detail: "low" as const },
       });
     }
   }
 
-  userContent.push({
+  markingContent.push({
     type: "text",
-    text: "STUDENT'S HANDWRITTEN ANSWERS (mark each question strictly against the mark scheme):",
+    text: `STUDENT'S ANSWERS (transcribed verbatim from handwriting — mark strictly against the mark scheme. YOU must identify which text belongs to which question):
+
+${fullTranscription}`,
   });
 
-  for (const url of photoUrls) {
-    userContent.push({
-      type: "image_url",
-      image_url: { url, detail: "high" as const },
-    });
-  }
-
-  // Call gpt-4o vision
   const llmResponse = await callOpenAI({
     system: systemPrompt,
-    user: userContent,
+    user: markingContent,
     jsonMode: true,
     maxTokens: 8192,
     model: "gpt-4o",
+    temperature: 0,
   });
+
+  console.log("\nMARKING RESPONSE:");
+  console.log(llmResponse.slice(0, 2000));
+  if (llmResponse.length > 2000) console.log(`... (${llmResponse.length} chars total)`);
+  console.log("=".repeat(60) + "\n");
 
   // Parse response
   let parsed: {
@@ -382,8 +433,12 @@ export async function submitPhotos(options: {
   try {
     parsed = JSON.parse(llmResponse);
   } catch {
+    console.error("PARSE ERROR — raw response:", llmResponse.slice(0, 500));
     throw new Error("Failed to parse LLM response as JSON");
   }
+
+  // Step 2 works from transcribed text — read_text should come from the marking response
+  // (the AI identifies which part of the transcription belongs to each question)
 
   // Check for low confidence questions
   const lowConfidence = (parsed.questions ?? []).filter((q) => q.confidence === "low");
