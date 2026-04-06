@@ -152,6 +152,7 @@ export async function startQuiz(data: {
   topic_id?: string;
   count?: number;
   question_type?: string;
+  difficulty?: string;
 }) {
   const res = await fetch(`${BASE}/api/quiz/start`, {
     method: "POST",

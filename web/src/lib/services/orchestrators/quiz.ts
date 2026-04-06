@@ -52,6 +52,7 @@ export async function startQuizSession(options: {
   topicId?: string;
   count?: number;
   questionType?: string;
+  difficulty?: string;
   studentId?: string;
 }): Promise<{ session_id: string; questions: QuizQuestion[] }> {
   const {
@@ -59,6 +60,7 @@ export async function startQuizSession(options: {
     topicId,
     count = 10,
     questionType = "all",
+    difficulty,
     studentId = STUDENT_ID,
   } = options;
 
@@ -96,13 +98,17 @@ export async function startQuizSession(options: {
   // Build query
   let query = supabaseAdmin
     .from("exam_questions")
-    .select("id, question_text, marks, response_type, question_type, correct_answer, mark_scheme, parent_context, has_diagram, fig_refs, table_refs, paper_id, syllabus_topic_id")
+    .select("id, question_text, marks, response_type, question_type, correct_answer, mark_scheme, parent_context, has_diagram, fig_refs, table_refs, paper_id, syllabus_topic_id, subject_code, difficulty")
     .eq("subject_code", subjectCode)
     .eq("is_stem", false)
     .eq("evaluation_ready", true);
 
   if (topicId) {
     query = query.eq("syllabus_topic_id", topicId);
+  }
+
+  if (difficulty) {
+    query = query.eq("difficulty", difficulty);
   }
 
   if (questionType === "mcq") {

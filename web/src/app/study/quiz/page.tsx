@@ -13,11 +13,19 @@ const QUESTION_TYPES = [
   { value: "numeric", label: "Calculation" },
 ];
 
+const DIFFICULTIES = [
+  { value: "all", label: "All Levels" },
+  { value: "easy", label: "Easy" },
+  { value: "medium", label: "Medium" },
+  { value: "hard", label: "Hard" },
+];
+
 const COUNTS = [5, 10, 15, 20];
 
 export default function QuizPage() {
   const router = useRouter();
   const [questionType, setQuestionType] = useState("all");
+  const [difficulty, setDifficulty] = useState("all");
   const [count, setCount] = useState(10);
 
   const handleStart = (subjectCode: string, topicId?: string) => {
@@ -27,6 +35,7 @@ export default function QuizPage() {
       count: String(count),
     });
     if (topicId) params.set("topic", topicId);
+    if (difficulty !== "all") params.set("difficulty", difficulty);
     router.push(`/study/quiz/session?${params.toString()}`);
   };
 
@@ -50,6 +59,27 @@ export default function QuizPage() {
                 )}
               >
                 {t.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Difficulty */}
+        <div className="space-y-1.5">
+          <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Difficulty</p>
+          <div className="flex gap-1.5">
+            {DIFFICULTIES.map((d) => (
+              <button
+                key={d.value}
+                onClick={() => setDifficulty(d.value)}
+                className={cn(
+                  "px-3 py-1.5 rounded-lg text-xs font-medium cursor-pointer transition-all",
+                  difficulty === d.value
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-secondary text-muted-foreground hover:text-foreground"
+                )}
+              >
+                {d.label}
               </button>
             ))}
           </div>

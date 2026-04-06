@@ -47,6 +47,7 @@ function QuizSessionInner() {
   const subjectCode = searchParams.get("subject") ?? "";
   const topicId = searchParams.get("topic") ?? undefined;
   const questionType = searchParams.get("type") ?? "all";
+  const difficulty = searchParams.get("difficulty") ?? undefined;
   const count = Number(searchParams.get("count") ?? "10");
 
   const [phase, setPhase] = useState<"loading" | "answering" | "feedback" | "summary">("loading");
@@ -74,7 +75,7 @@ function QuizSessionInner() {
   // Start session
   useEffect(() => {
     if (!subjectCode) return;
-    startQuiz({ subject_code: subjectCode, topic_id: topicId, count, question_type: questionType })
+    startQuiz({ subject_code: subjectCode, topic_id: topicId, count, question_type: questionType, difficulty })
       .then((data) => {
         setSessionId(data.session_id);
         setQuestions(data.questions ?? []);

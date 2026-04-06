@@ -7,6 +7,7 @@ const schema = z.object({
   topic_id: z.string().uuid().optional(),
   count: z.number().int().min(1).max(40).optional(),
   question_type: z.enum(["all", "mcq", "text", "numeric"]).optional(),
+  difficulty: z.enum(["easy", "medium", "hard"]).optional(),
 });
 
 export async function POST(request: Request) {
@@ -19,6 +20,7 @@ export async function POST(request: Request) {
       topicId: input.topic_id,
       count: input.count,
       questionType: input.question_type,
+      difficulty: input.difficulty,
     });
 
     return Response.json(result);
