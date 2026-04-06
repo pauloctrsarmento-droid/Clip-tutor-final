@@ -113,13 +113,26 @@ async function buildMarkingStrategyFromDB(paperId: string, paperInfo: ExamPaperI
     const qn = q.question_number as string;
     const partLabel = q.part_label as string | null;
     const questionNumber = partLabel ? `${qn}${partLabel}` : qn;
-    const markPoints = q.mark_points as string[] | null;
+    const rawMarkPoints = q.mark_points as unknown;
     const markScheme = (q.mark_scheme as string) ?? "";
+
+    // mark_points can be string[] or {id, text}[] — normalize to descriptive strings
+    let markPoints: string[] = [];
+    if (Array.isArray(rawMarkPoints) && rawMarkPoints.length > 0) {
+      markPoints = rawMarkPoints.map((mp: unknown) => {
+        if (typeof mp === "string") return mp;
+        if (mp && typeof mp === "object" && "text" in mp) {
+          const obj = mp as { id?: string; text?: string };
+          return obj.text ? `${obj.id ?? "M1"}: ${obj.text}` : (obj.id ?? "M1");
+        }
+        return String(mp);
+      });
+    }
 
     return {
       question_number: questionNumber,
       max_marks: q.marks as number,
-      mark_points: markPoints && markPoints.length > 0
+      mark_points: markPoints.length > 0
         ? markPoints
         : markScheme ? [markScheme] : [],
       acceptable_alternatives: [],
