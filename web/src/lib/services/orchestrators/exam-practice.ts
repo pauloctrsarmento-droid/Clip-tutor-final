@@ -312,34 +312,14 @@ export async function submitPhotos(options: {
     .replace(/\{\{language\}\}/g, language)
     .replace(/\{\{language_instruction\}\}/g, languageInstruction);
 
-  // Build vision content: mark scheme PDF pages + student photos
-  const userContent: VisionContentPart[] = [];
-
-  // Include mark scheme PDF as images for the AI to reference
-  if (paperInfo.ms_url) {
-    userContent.push({
-      type: "text",
-      text: "MARK SCHEME PDF (use these level descriptors and marking criteria to award marks accurately):",
-    });
-    // Send first 8 pages of the mark scheme as images via PDF-to-image URL
-    // Supabase Storage serves PDFs — GPT-4o vision can read PDF URLs directly
-    userContent.push({
-      type: "image_url",
-      image_url: { url: paperInfo.ms_url, detail: "high" as const },
-    });
-  }
-
-  userContent.push({
-    type: "text",
-    text: "STUDENT'S HANDWRITTEN ANSWERS (mark each question strictly against the mark scheme above):",
-  });
-
-  for (const url of photoUrls) {
-    userContent.push({
-      type: "image_url",
+  // Build vision content with student photos
+  const userContent: VisionContentPart[] = [
+    { type: "text", text: "Here are the student's handwritten exam answers. Mark each question strictly against the mark scheme provided in the system prompt:" },
+    ...photoUrls.map((url) => ({
+      type: "image_url" as const,
       image_url: { url, detail: "high" as const },
-    });
-  }
+    })),
+  ];
 
   // Call gpt-4o vision
   const llmResponse = await callOpenAI({
