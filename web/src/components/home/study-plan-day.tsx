@@ -8,9 +8,12 @@ import { getSubjectMeta } from "@/lib/subject-meta";
 import { useNotifications } from "@/hooks/use-notifications";
 import type { StudyPlanEntry } from "@/lib/types";
 
+const NON_STUDY_SUBJECTS = new Set(["PERSONAL", "ART"]);
+
 interface StudyPlanDayProps {
   blocks: StudyPlanEntry[];
   overdueBlocks: StudyPlanEntry[];
+  onStartBlock?: (block: StudyPlanEntry) => void;
 }
 
 /** Parse "HH:MM" or "HH:MM:SS" into today's Date */
@@ -72,10 +75,12 @@ function BlockCard({
   block,
   isFirstPending,
   now,
+  onStart,
 }: {
   block: StudyPlanEntry;
   isFirstPending: boolean;
   now: Date;
+  onStart?: () => void;
 }) {
   const meta = getSubjectMeta(block.subject_code);
   const Icon = meta.icon;
@@ -84,6 +89,9 @@ function BlockCard({
 
   return (
     <div
+      onClick={onStart}
+      role={onStart ? "button" : undefined}
+      tabIndex={onStart ? 0 : undefined}
       className={cn(
         "relative flex items-center gap-3 rounded-xl bg-card border p-4 transition-all",
         block.status === "done" && "opacity-60 border-border",
@@ -91,7 +99,8 @@ function BlockCard({
         block.status === "pending" && !isActive && "border-border",
         block.status === "rescheduled" && "border-border opacity-50",
         isActive && "border-emerald-500/50 bg-emerald-500/5",
-        isFirstPending && !isActive && "border-l-4 border-l-primary border-t-border border-r-border border-b-border"
+        isFirstPending && !isActive && "border-l-4 border-l-primary border-t-border border-r-border border-b-border",
+        onStart && "cursor-pointer hover:border-primary/30 hover:bg-primary/5 active:scale-[0.99]"
       )}
     >
       {/* Progress bar for active blocks */}
@@ -186,7 +195,7 @@ function BlockCard({
   );
 }
 
-export function StudyPlanDay({ blocks, overdueBlocks }: StudyPlanDayProps) {
+export function StudyPlanDay({ blocks, overdueBlocks, onStartBlock }: StudyPlanDayProps) {
   const firstPendingId = blocks.find((b) => b.status === "pending")?.id;
   const { permission, requestPermission } = useNotifications(blocks);
   const now = useNow();
@@ -248,14 +257,18 @@ export function StudyPlanDay({ blocks, overdueBlocks }: StudyPlanDayProps) {
         </div>
       ) : (
         <div className="space-y-2">
-          {blocks.map((block) => (
-            <BlockCard
-              key={block.id}
-              block={block}
-              isFirstPending={block.id === firstPendingId}
-              now={now}
-            />
-          ))}
+          {blocks.map((block) => {
+            const isStudyBlock = !NON_STUDY_SUBJECTS.has(block.subject_code) && block.status === "pending";
+            return (
+              <BlockCard
+                key={block.id}
+                block={block}
+                isFirstPending={block.id === firstPendingId}
+                now={now}
+                onStart={isStudyBlock && onStartBlock ? () => onStartBlock(block) : undefined}
+              />
+            );
+          })}
         </div>
       )}
     </div>

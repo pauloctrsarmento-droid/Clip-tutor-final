@@ -11,12 +11,14 @@ interface StudyPlanProps {
   todayBlocks: StudyPlanEntry[];
   overdueBlocks: StudyPlanEntry[];
   exams: ExamCalendarEntry[];
+  onStartBlock?: (block: StudyPlanEntry) => void;
 }
 
 export function StudyPlan({
   todayBlocks,
   overdueBlocks,
   exams,
+  onStartBlock,
 }: StudyPlanProps) {
   return (
     <motion.div
@@ -39,7 +41,7 @@ export function StudyPlan({
         </TabsList>
 
         <TabsContent value="today">
-          <StudyPlanDay blocks={todayBlocks} overdueBlocks={overdueBlocks} />
+          <StudyPlanDay blocks={todayBlocks} overdueBlocks={overdueBlocks} onStartBlock={onStartBlock} />
         </TabsContent>
 
         <TabsContent value="week">

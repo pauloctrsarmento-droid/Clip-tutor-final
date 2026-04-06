@@ -203,18 +203,23 @@ export function HeroCta({ blocks, overview, exams, onStartSession, onStartBlock,
         </div>
       </button>
 
-      {/* Remaining study blocks — clickable */}
+      {/* Remaining study blocks */}
       {pendingStudyBlocks.length > 1 && (
         <div className="flex flex-wrap items-center gap-2 px-1">
-          <span className="text-[10px] text-muted-foreground/60 mr-1">Or choose:</span>
+          <span className="text-[10px] text-muted-foreground/60 mr-1">Up next:</span>
           {pendingStudyBlocks.slice(1).map((block) => {
             const meta = getSubjectMeta(block.subject_code);
             const name = SUBJECT_NAMES[block.subject_code] ?? block.subject_code;
+            const isPastPaper = block.title.toLowerCase().includes("past paper");
+            const Tag = isPastPaper ? "button" : "span";
             return (
-              <button
+              <Tag
                 key={block.id}
-                onClick={() => onStartBlock?.(block)}
-                className="inline-flex items-center gap-1.5 rounded-full bg-card border border-border px-3 py-1 text-xs text-muted-foreground cursor-pointer hover:border-primary/30 hover:bg-primary/5 transition-colors"
+                onClick={isPastPaper ? () => onStartBlock?.(block) : undefined}
+                className={cn(
+                  "inline-flex items-center gap-1.5 rounded-full bg-card border border-border px-3 py-1 text-xs text-muted-foreground",
+                  isPastPaper && "cursor-pointer hover:border-primary/30 hover:bg-primary/5 transition-colors"
+                )}
               >
                 <span
                   className={cn("w-2 h-2 rounded-full bg-gradient-to-br", meta.gradient)}
@@ -222,7 +227,7 @@ export function HeroCta({ blocks, overview, exams, onStartSession, onStartBlock,
                 />
                 <span className="font-medium text-foreground">{name}</span>
                 <span className="text-muted-foreground/60">{block.title}</span>
-              </button>
+              </Tag>
             );
           })}
         </div>

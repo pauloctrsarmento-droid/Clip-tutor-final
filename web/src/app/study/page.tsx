@@ -169,6 +169,7 @@ export default function StudyHomePage() {
             todayBlocks={today.today}
             overdueBlocks={today.overdue}
             exams={exams}
+            onStartBlock={startBlock}
           />
           <motion.div
             initial={{ opacity: 0, y: 12 }}
@@ -198,6 +199,7 @@ export default function StudyHomePage() {
             todayBlocks={today.today}
             overdueBlocks={today.overdue}
             exams={exams}
+            onStartBlock={startBlock}
           />
           <WeeklySummary overview={overview} subjects={subjects} exams={exams} />
           <motion.div
