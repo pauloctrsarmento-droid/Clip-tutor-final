@@ -107,7 +107,7 @@ async function buildMarkingStrategyFromDB(paperId: string, paperInfo: ExamPaperI
     offset += pageSize;
   }
 
-  if (allQuestions.length < 5) return null; // Not enough data, need fallback
+  if (allQuestions.length === 0) return null; // No questions found for this paper
 
   const questions: MarkingStrategyQuestion[] = allQuestions.map((q) => {
     const qn = q.question_number as string;
