@@ -8,7 +8,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { motion, AnimatePresence } from "framer-motion";
-import { ArrowLeft, ChevronRight } from "lucide-react";
+import { ArrowLeft, ChevronRight, Clock } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { STUDY_SUBJECTS } from "@/lib/constants";
 import type { ExamPaper } from "./types";
@@ -130,15 +130,24 @@ export function ExamPaperPicker({ onSelect, initialSubjectCode, initialComponent
 
   return (
     <div className="space-y-8">
-      <div>
-        <h1 className="font-heading text-3xl font-bold tracking-tight">
-          Exam Practice
-        </h1>
-        <p className="text-muted-foreground mt-1">
-          {selectedSubject
-            ? `Choose a paper for ${selectedSubject.name}`
-            : "Choose a subject to start"}
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="font-heading text-3xl font-bold tracking-tight">
+            Exam Practice
+          </h1>
+          <p className="text-muted-foreground mt-1">
+            {selectedSubject
+              ? `Choose a paper for ${selectedSubject.name}`
+              : "Choose a subject to start"}
+          </p>
+        </div>
+        <a
+          href="/study/exam/history"
+          className="inline-flex items-center gap-1.5 rounded-lg bg-secondary px-3 py-2 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-secondary/80 transition-colors"
+        >
+          <Clock className="w-3.5 h-3.5" />
+          History
+        </a>
       </div>
 
       <AnimatePresence mode="wait">
