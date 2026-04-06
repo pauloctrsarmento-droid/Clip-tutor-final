@@ -32,10 +32,21 @@ export async function getPlanEntries(options: {
 /**
  * Get today's blocks + any overdue pending blocks.
  */
+/** Get today's date in Luísa's timezone (Europe/Lisbon) — format YYYY-MM-DD */
+function getTodayDate(): string {
+  return new Date().toLocaleDateString("en-CA", { timeZone: "Europe/Lisbon" });
+}
+
+/** Get a Date object adjusted to Lisbon timezone for week calculations */
+function getNowInLisbon(): Date {
+  const str = new Date().toLocaleString("en-US", { timeZone: "Europe/Lisbon" });
+  return new Date(str);
+}
+
 export async function getTodayPlan(
   studentId = STUDENT_ID
 ): Promise<{ today: StudyPlanEntry[]; overdue: StudyPlanEntry[] }> {
-  const today = new Date().toISOString().split("T")[0];
+  const today = getTodayDate();
 
   const [todayRes, overdueRes] = await Promise.all([
     supabaseAdmin
@@ -70,15 +81,15 @@ export async function getWeekPlan(
   weekOffset = 0,
   studentId = STUDENT_ID
 ): Promise<StudyPlanEntry[]> {
-  const now = new Date();
+  const now = getNowInLisbon();
   const dayOfWeek = now.getDay(); // 0=Sun
   const monday = new Date(now);
   monday.setDate(now.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1) + weekOffset * 7);
   const sunday = new Date(monday);
   sunday.setDate(monday.getDate() + 6);
 
-  const from = monday.toISOString().split("T")[0];
-  const to = sunday.toISOString().split("T")[0];
+  const from = monday.toLocaleDateString("en-CA");
+  const to = sunday.toLocaleDateString("en-CA");
 
   return getPlanEntries({ from, to, studentId });
 }
@@ -172,7 +183,7 @@ export async function getExamCalendar(
 
   if (error) throw error;
 
-  const today = new Date();
+  const today = getNowInLisbon();
   today.setHours(0, 0, 0, 0);
 
   return (data ?? []).map((row) => {
