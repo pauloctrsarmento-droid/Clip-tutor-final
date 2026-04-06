@@ -132,7 +132,22 @@ export default function StudyHomePage() {
         blocks={today.today}
         overview={overview}
         exams={exams}
-        onStartSession={() => setShowMoodCheck(true)}
+        onStartSession={() => {
+          const NON_STUDY = new Set(["PERSONAL", "ART"]);
+          const nextBlock = today.today.find(
+            (b) => b.status === "pending" && !NON_STUDY.has(b.subject_code)
+          );
+          if (nextBlock && nextBlock.title.toLowerCase().includes("past paper")) {
+            const title = nextBlock.title.toLowerCase();
+            let url = `/study/exam?subject=${nextBlock.subject_code}`;
+            if (title.includes("writing")) url += "&component=writing";
+            else if (title.includes("reading")) url += "&component=reading";
+            else if (title.includes("listening")) url += "&component=listening";
+            router.push(url);
+          } else {
+            setShowMoodCheck(true);
+          }
+        }}
       />
 
       {/* Exam Timeline — full width */}

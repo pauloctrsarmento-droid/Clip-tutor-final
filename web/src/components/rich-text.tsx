@@ -89,6 +89,75 @@ function startsWithAny(text: string, list: string[]): boolean {
   return list.some((s) => lower.startsWith(s.toLowerCase()));
 }
 
+/**
+ * Detect and render pipe-delimited tables in text.
+ * Pattern: lines with 2+ pipe separators, often starting with A|B|C|D or a header row.
+ * Returns { before, tableHtml, after } if found, or null if no table.
+ */
+function extractPipeTable(text: string): { before: string; tableHtml: string; after: string } | null {
+  const lines = text.split("\n");
+
+  // Find contiguous block of lines with 2+ pipes (the table)
+  let tableStart = -1;
+  let tableEnd = -1;
+
+  for (let i = 0; i < lines.length; i++) {
+    const pipeCount = (lines[i].match(/\|/g) || []).length;
+    if (pipeCount >= 2) {
+      if (tableStart === -1) tableStart = i;
+      tableEnd = i;
+    } else if (tableStart !== -1) {
+      break; // end of contiguous table block
+    }
+  }
+
+  if (tableStart === -1 || tableEnd - tableStart < 1) return null;
+
+  const tableLines = lines.slice(tableStart, tableEnd + 1);
+  const before = lines.slice(0, tableStart).join("\n");
+  const after = lines.slice(tableEnd + 1).join("\n");
+
+  // Parse rows: split by | keeping positional columns intact
+  // Header "  | Temperature | KE" → ["", "Temperature", "KE"] (3 cols)
+  // Data   "A | reduces | reduces" → ["A", "reduces", "reduces"] (3 cols)
+  const rows = tableLines.map((line) => {
+    const cells = line.split("|").map((cell) => cell.trim());
+    // Only trim trailing empty cell (from trailing pipe), keep leading empty
+    if (cells.length > 0 && cells[cells.length - 1] === "") cells.pop();
+    return cells;
+  });
+
+  // Detect if first row is a header: first cell is empty (the letter column)
+  const firstRowIsHeader = rows.length > 1 && rows[0][0] === "";
+
+  const colCount = Math.max(...rows.map((r) => r.length));
+
+  let html = '<table class="mt-3 mb-3 w-full text-sm border-collapse">';
+
+  rows.forEach((row, i) => {
+    const isHeader = firstRowIsHeader && i === 0;
+    const tag = isHeader ? "th" : "td";
+    const rowClass = isHeader
+      ? 'class="border-b border-white/20 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground"'
+      : i % 2 === 0
+        ? 'class="border-b border-white/5"'
+        : 'class="border-b border-white/5 bg-white/[0.02]"';
+
+    html += `<tr ${rowClass}>`;
+    for (let c = 0; c < colCount; c++) {
+      const cellClass = c === 0 && !isHeader
+        ? 'class="py-2 px-3 font-semibold text-primary"'
+        : 'class="py-2 px-3"';
+      html += `<${tag} ${cellClass}>${row[c] ?? ""}</${tag}>`;
+    }
+    html += "</tr>";
+  });
+
+  html += "</table>";
+
+  return { before, tableHtml: html, after };
+}
+
 function renderRichText(text: string): string {
   if (!text) return "";
 
@@ -98,10 +167,22 @@ function renderRichText(text: string): string {
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;");
 
+  // Detect and render pipe-delimited tables before paragraph splitting
+  const table = extractPipeTable(escaped);
+  if (table) {
+    const beforeHtml = table.before.trim() ? renderRichTextParagraphs(table.before) : "";
+    const afterHtml = table.after.trim() ? renderRichTextParagraphs(table.after) : "";
+    return beforeHtml + table.tableHtml + afterHtml;
+  }
+
+  return renderRichTextParagraphs(escaped);
+}
+
+function renderRichTextParagraphs(escaped: string): string {
   // Handle bold: only in first paragraph. Strip all ** markers first, then bold the first paragraph later.
   // Collect all bold segments
   const boldSegments: string[] = [];
-  escaped = escaped.replace(/\*\*(.+?)\*\*/g, (_, t: string) => {
+  let processed = escaped.replace(/\*\*(.+?)\*\*/g, (_, t: string) => {
     boldSegments.push(t);
     return t; // strip markers, keep text
   });
@@ -109,10 +190,10 @@ function renderRichText(text: string): string {
   const hasFirstBold = boldSegments.length > 0;
 
   // Process LaTeX
-  escaped = processInline(escaped);
+  processed = processInline(processed);
 
   // Split into paragraphs
-  const paragraphs = escaped.split(/\n\n|\n/).filter((p) => p.trim());
+  const paragraphs = processed.split(/\n\n|\n/).filter((p) => p.trim());
 
   let isFirstParagraph = true;
 

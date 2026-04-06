@@ -144,13 +144,10 @@ export async function startQuizSession(options: {
     const tableRefs = (q.table_refs as string[]) ?? [];
     const paperId = q.paper_id as string;
 
-    // SME questions store CDN URLs directly in fig_refs; Cambridge uses fig ref codes like "3.1"
-    const isSme = (paperId as string).startsWith("sme_");
-    const diagramUrls = isSme
-      ? figRefs.filter((r: string) => r.startsWith("http"))  // SME: raw CDN URLs in fig_refs
-      : (q.has_diagram || figRefs.length > 0)
-        ? getQuestionDiagramUrls(paperId, figRefs, tableRefs)  // Cambridge: Supabase Storage
-        : [];
+    // All questions (Cambridge + SME) resolve diagrams via Supabase Storage
+    const diagramUrls = (q.has_diagram || figRefs.length > 0)
+      ? getQuestionDiagramUrls(paperId, figRefs, tableRefs)
+      : [];
 
     // Parse MCQ options from mark_scheme
     let options: Record<string, string> | null = null;
@@ -359,8 +356,14 @@ export async function endQuizSession(options: {
 
 // ── Question Answerability Filter ─────────────────────────────
 
-// Question DEPENDS on seeing an image to answer
-const NEEDS_IMAGE = /\b(look at the|see the|shown in the|in the diagram|in the figure|the picture shows|the image shows|the graph shows|the table shows|from the graph|from the diagram|from the figure|tick.*box|correct letter)\b/i;
+// Question DEPENDS on seeing an image or hearing audio to answer (EN + FR)
+const NEEDS_IMAGE = /\b(look at the|see the|shown in the|in the diagram|in the figure|the picture shows|the image shows|the graph shows|the table shows|from the graph|from the diagram|from the figure|tick.*box|correct letter|regardez les|cochez.*case|écoutez|crivez la bonne lettre|PAUSE)\b/i;
+
+// Implicit references to external visual data or text passages (EN + FR + PT)
+const IMPLICIT_VISUAL = /\b(the table|the graph|the results|the chart|the apparatus|the circuit|shown below|shown above|results are shown|results are given|data (?:is|are) shown|readings? (?:is|are) shown|values? (?:is|are) shown|in the table|in the graph|from the table|according to the text|in the text|the passage|the extract|re-read|de acordo com o texto|segundo o texto|no texto|o excerto|refere o texto)\b/i;
+
+// References to unnamed substances/elements only identifiable via diagram
+const UNNAMED_REFS = /\b(?:pure|substance|element|liquid|metal|compound|solution|gas|sample) [A-Z]\b/;
 
 // Student must draw/sketch (instructions, not image dependencies)
 const IS_INSTRUCTION = /\b(draw a|sketch a|complete the diagram|label the diagram|plot a graph|dessinez|tracez)\b/i;
@@ -375,20 +378,38 @@ const BARE_LETTERS = /(?:^|\n)\s*[A-H]\s*(?:\n|$)/gm;
  */
 function isAnswerable(q: Record<string, unknown>): boolean {
   const hasImage = (q.has_diagram as boolean) || ((q.fig_refs as string[])?.length ?? 0) > 0;
-
-  // Questions with available images are always answerable
-  if (hasImage) return true;
-
   const questionText = (q.question_text as string) ?? "";
   const parentContext = (q.parent_context as string) ?? "";
   const fullText = `${questionText} ${parentContext}`;
+  const hasContext = parentContext.length > 20;
+
+  // If question has diagram flag but NO parent context — only trust if fig_refs exist
+  // (diagrams without fig_refs can't be resolved to actual files)
+  if (hasImage && !hasContext) {
+    const figRefs = (q.fig_refs as string[]) ?? [];
+    if (figRefs.length === 0) return false;
+  }
+
+  // Questions with images AND context are answerable
+  if (hasImage && hasContext) return true;
 
   // Check for explicit image references
   if (NEEDS_IMAGE.test(fullText) && !IS_INSTRUCTION.test(fullText)) return false;
 
+  // Check for implicit visual references without context
+  if (!hasContext && IMPLICIT_VISUAL.test(fullText)) return false;
+
+  // Check for unnamed substance/element references without context
+  if (!hasContext && UNNAMED_REFS.test(questionText)) return false;
+
   // Check for bare letter options (A\nB\nC without descriptions) — image matching questions
-  const bareMatches = questionText.match(BARE_LETTERS);
-  if (bareMatches && bareMatches.length >= 3) return false;
+  // Skip for language subjects where bare letters are valid comprehension options
+  const LANGUAGE_SUBJECTS = new Set(["0520", "0500", "0475", "0504"]);
+  const subjectCode = (q.subject_code as string) ?? "";
+  if (!LANGUAGE_SUBJECTS.has(subjectCode)) {
+    const bareMatches = questionText.match(BARE_LETTERS);
+    if (bareMatches && bareMatches.length >= 3) return false;
+  }
 
   return true;
 }

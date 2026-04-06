@@ -4,17 +4,24 @@ const STORAGE_BASE = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/
  * Get the Supabase Storage URL for a diagram figure.
  * - figRef "3.1" → "fig_3_1.png" (Theory/ATP papers with Fig. X.Y captions)
  * - figRef "15" → "q15.png" (MC papers with per-question inline diagrams)
+ * - figRef "q1-easy-mcq-physics" → "q1-easy-mcq-physics.png" (SME raw filenames)
  *
- * @param paperId - e.g. "0620_s23_41" or "0620_s23_21" (MC)
- * @param figRef - e.g. "3.1" or "15"
+ * @param paperId - e.g. "0620_s23_41", "0620_s23_21" (MC), or "sme_0625" (SME)
+ * @param figRef - e.g. "3.1", "15", or "q1-easy-mcq-physics"
  * @returns Full public URL to the PNG
  */
 export function getDiagramUrl(paperId: string, figRef: string): string {
+  // Pure number → MC paper format: q15.png
   if (/^\d+$/.test(figRef)) {
     return `${STORAGE_BASE}/${paperId}/q${figRef}.png`;
   }
-  const slug = figRef.replace(/\./g, "_");
-  return `${STORAGE_BASE}/${paperId}/fig_${slug}.png`;
+  // Dotted ref → Theory/ATP: fig_3_1.png
+  if (figRef.includes(".")) {
+    const slug = figRef.replace(/\./g, "_");
+    return `${STORAGE_BASE}/${paperId}/fig_${slug}.png`;
+  }
+  // Raw filename (SME images stored by original CDN filename)
+  return `${STORAGE_BASE}/${paperId}/${figRef}.png`;
 }
 
 /**

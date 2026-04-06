@@ -49,7 +49,15 @@ export function SubjectPicker({ onStart, title = "Flashcards", subtitle }: Subje
       .finally(() => setLoading(false));
   }, []);
 
+  // Subjects where exam questions aren't mapped to individual topics yet
+  const SKIP_TOPIC_PICKER = new Set(["0520", "0500", "0504"]);
+
   const handleSelectSubject = useCallback(async (subject: Subject) => {
+    if (SKIP_TOPIC_PICKER.has(subject.code)) {
+      onStart(subject.code);
+      return;
+    }
+
     setSelectedSubject(subject);
     setTopicsLoading(true);
     try {
@@ -58,7 +66,7 @@ export function SubjectPicker({ onStart, title = "Flashcards", subtitle }: Subje
     } finally {
       setTopicsLoading(false);
     }
-  }, []);
+  }, [onStart]);
 
   if (loading) {
     return (

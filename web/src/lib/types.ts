@@ -271,6 +271,8 @@ export interface StudyPlanEntry {
   actual_date: string | null;
   notes: string | null;
   sort_order: number;
+  start_time: string | null;
+  end_time: string | null;
 }
 
 export interface ExamCalendarEntry {

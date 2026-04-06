@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { fetchSubjects, fetchExamPapers, fetchPaperExposure } from "@/lib/api";
 import type { PaperExposure } from "@/lib/api";
 import { getSubjectMeta } from "@/lib/subject-meta";
@@ -23,6 +23,8 @@ interface Subject {
 
 interface ExamPaperPickerProps {
   onSelect: (paper: ExamPaper) => void;
+  initialSubjectCode?: string | null;
+  initialComponentFilter?: string | null;
 }
 
 const EXCLUDED_TYPES = ["mc", "listening", "oral"];
@@ -50,13 +52,14 @@ function formatComponentType(ct: string): string {
   return map[ct] ?? ct;
 }
 
-export function ExamPaperPicker({ onSelect }: ExamPaperPickerProps) {
+export function ExamPaperPicker({ onSelect, initialSubjectCode, initialComponentFilter }: ExamPaperPickerProps) {
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedSubjectCode, setSelectedSubjectCode] = useState<string | null>(null);
   const [papers, setPapers] = useState<ExamPaper[]>([]);
   const [papersLoading, setPapersLoading] = useState(false);
   const [exposure, setExposure] = useState<Map<string, PaperExposure>>(new Map());
+  const initialAppliedRef = useRef(false);
 
   const selectedSubject = subjects.find((s) => s.code === selectedSubjectCode) ?? null;
 
@@ -68,6 +71,15 @@ export function ExamPaperPicker({ onSelect }: ExamPaperPickerProps) {
       .finally(() => setLoading(false));
   }, []);
 
+  // Auto-select subject from study plan
+  useEffect(() => {
+    if (initialSubjectCode && !loading && subjects.length > 0 && !initialAppliedRef.current) {
+      initialAppliedRef.current = true;
+      handleSelectSubject(initialSubjectCode);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialSubjectCode, loading, subjects]);
+
   const handleSelectSubject = useCallback(async (code: string) => {
     setSelectedSubjectCode(code);
     setPapersLoading(true);
@@ -76,9 +88,14 @@ export function ExamPaperPicker({ onSelect }: ExamPaperPickerProps) {
         fetchExamPapers(code) as Promise<ExamPaper[]>,
         fetchPaperExposure(code),
       ]);
-      const filtered = data.filter(
+      let filtered = data.filter(
         (p) => !p.component_type || !EXCLUDED_TYPES.includes(p.component_type)
       );
+      if (initialComponentFilter) {
+        filtered = filtered.filter(
+          (p) => p.component_type === initialComponentFilter
+        );
+      }
       // Sort by year descending, then session, then variant
       filtered.sort((a, b) => {
         if (b.year !== a.year) return b.year - a.year;

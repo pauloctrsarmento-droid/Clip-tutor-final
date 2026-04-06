@@ -62,7 +62,7 @@ export function QuizAnswerInput({
               >
                 {letter}
               </span>
-              <span className="text-sm leading-relaxed">{text}</span>
+              <span className="text-sm leading-relaxed">{text.replace(/\s*\|\s*/g, " — ")}</span>
             </button>
           );
         })}

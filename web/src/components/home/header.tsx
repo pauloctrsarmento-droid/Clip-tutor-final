@@ -4,6 +4,7 @@ import { Target, Settings } from "lucide-react";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
+import { LiveClock } from "@/components/home/live-clock";
 import type { StudyPlanEntry, DashboardOverview, SubjectMastery } from "@/lib/types";
 import { STUDY_SUBJECTS } from "@/lib/constants";
 
@@ -67,8 +68,9 @@ export function HomeHeader({ overview, todayBlocks, subjects }: HomeHeaderProps)
         </div>
       )}
 
-      {/* Right: mastery counter + settings */}
+      {/* Right: clock + mastery counter + settings */}
       <div className="flex items-center gap-3">
+        <LiveClock />
         <div className="flex items-center gap-2 rounded-xl bg-card border border-border px-3 py-1.5">
           <Target className="w-4 h-4 text-emerald-400" />
           <span className="text-sm font-medium text-foreground">

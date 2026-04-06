@@ -15,6 +15,10 @@ const SUBJECT_NAMES: Record<string, string> = {
   "0478": "CS",
   "0520": "French",
   "0504": "Portuguese",
+  "0475": "Eng. Lit",
+  "0500": "English",
+  ART: "Art",
+  PERSONAL: "Personal",
 };
 
 interface HeroCtaProps {
@@ -26,12 +30,16 @@ interface HeroCtaProps {
   onResumeSession?: () => void;
 }
 
-export function HeroCta({ blocks, overview, exams, onStartSession, pausedSessionId, onResumeSession }: HeroCtaProps) {
-  const allDone = blocks.length > 0 && blocks.every((b) => b.status === "done");
-  const noBlocks = blocks.length === 0;
-  const totalHours = blocks.reduce((sum, b) => sum + b.planned_hours, 0);
+const NON_STUDY_SUBJECTS = new Set(["PERSONAL", "ART"]);
 
-  const pendingBlocks = blocks.filter((b) => b.status !== "done").slice(0, 5);
+export function HeroCta({ blocks, overview, exams, onStartSession, pausedSessionId, onResumeSession }: HeroCtaProps) {
+  const studyBlocks = blocks.filter((b) => !NON_STUDY_SUBJECTS.has(b.subject_code));
+  const allDone = studyBlocks.length > 0 && studyBlocks.every((b) => b.status === "done");
+  const noBlocks = studyBlocks.length === 0;
+  const totalHours = studyBlocks.reduce((sum, b) => sum + b.planned_hours, 0);
+
+  const pendingStudyBlocks = studyBlocks.filter((b) => b.status === "pending");
+  const nextBlock = pendingStudyBlocks[0];
 
   if (allDone) {
     return (
@@ -167,7 +175,7 @@ export function HeroCta({ blocks, overview, exams, onStartSession, pausedSession
         </button>
       )}
 
-      {/* Main CTA button */}
+      {/* Main CTA button — focused on next block */}
       <button
         onClick={onStartSession}
         className={cn(
@@ -180,10 +188,12 @@ export function HeroCta({ blocks, overview, exams, onStartSession, pausedSession
         <div className="flex items-center justify-between">
           <div>
             <span className="font-heading text-xl sm:text-2xl font-bold text-white">
-              {pausedSessionId ? "Start new session" : "Start today's session"}
+              {pausedSessionId ? "Continue session" : nextBlock ? `Start: ${nextBlock.title}` : "Start study session"}
             </span>
             <p className="text-emerald-100/70 text-sm mt-1">
-              ~{totalHours}h of planned study
+              {nextBlock?.start_time && nextBlock?.end_time
+                ? `${nextBlock.start_time.slice(0, 5)} – ${nextBlock.end_time.slice(0, 5)} · ${nextBlock.planned_hours}h`
+                : `~${totalHours}h of planned study`}
             </p>
           </div>
           <div className="w-11 h-11 rounded-2xl bg-white/20 flex items-center justify-center group-hover:bg-white/30 transition-colors">
@@ -192,10 +202,11 @@ export function HeroCta({ blocks, overview, exams, onStartSession, pausedSession
         </div>
       </button>
 
-      {/* Subject pills */}
-      {pendingBlocks.length > 0 && (
+      {/* Remaining study blocks */}
+      {pendingStudyBlocks.length > 1 && (
         <div className="flex flex-wrap items-center gap-2 px-1">
-          {pendingBlocks.map((block) => {
+          <span className="text-[10px] text-muted-foreground/60 mr-1">Up next:</span>
+          {pendingStudyBlocks.slice(1).map((block) => {
             const meta = getSubjectMeta(block.subject_code);
             const name = SUBJECT_NAMES[block.subject_code] ?? block.subject_code;
             return (

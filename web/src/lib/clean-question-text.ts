@@ -139,6 +139,9 @@ export function cleanParentContext(context: string | null): string | null {
 export function cleanQuestionText(text: string): string {
   let result = text;
 
+  // Remove SME tier/curriculum tags (not part of the question)
+  result = result.replace(/^\s*(?:Separate:\s*Chemistry\s*(?:and\s*Extended\s*)?Only|Extended\s*Tier\s*Only|Core\s*(?:and\s*(?:Supplement|Extended))?)\s*\n?/gim, "");
+
   // Remove "BLANK PAGE" (sometimes at end of text)
   result = result.replace(/\s*BLANK PAGE\s*/g, "");
 
@@ -199,6 +202,8 @@ export function cleanQuestionText(text: string): string {
   const filtered = lines.filter((line) => {
     const t = line.trim();
     if (!t) return true; // keep blank lines (collapsed later)
+    // Preserve pipe-table rows (lines with 2+ pipe separators)
+    if ((t.match(/\|/g) || []).length >= 2) return true;
     if (isAxisOrTickValue(t)) return false;
     if (t.length < 25 && !isSentenceLine(t) && !isDiagramLabel(t)) {
       // Additional check: keep if it looks like a sub-part label e.g. "(a)", "(b)(i)"

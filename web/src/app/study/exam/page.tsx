@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
+import { useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -15,6 +16,7 @@ import {
 import { ExamPaperPicker } from "@/components/exam/exam-paper-picker";
 import { ExamTimer } from "@/components/exam/exam-timer";
 import { PhotoUpload } from "@/components/exam/photo-upload";
+import { QrUpload } from "@/components/exam/qr-upload";
 import { ReviewModal } from "@/components/exam/review-modal";
 import { ExamResults } from "@/components/exam/exam-results";
 import type {
@@ -49,6 +51,9 @@ function formatComponentType(ct: string): string {
 }
 
 export default function ExamPage() {
+  const searchParams = useSearchParams();
+  const initialSubject = searchParams.get("subject");
+  const initialComponent = searchParams.get("component");
   const [phase, setPhase] = useState<Phase>("picker");
   const [selectedPaper, setSelectedPaper] = useState<ExamPaper | null>(null);
   const [sessionId, setSessionId] = useState<string | null>(null);
@@ -111,6 +116,10 @@ export default function ExamPage() {
     }
   }, [sessionId, photos]);
 
+  const handleRemotePhotos = useCallback((files: File[]) => {
+    setPhotos((prev) => [...prev, ...files]);
+  }, []);
+
   const handleTimerExpire = useCallback(() => {
     // Auto-submit when time is up if there are photos
     if (photos.length > 0) {
@@ -168,7 +177,7 @@ export default function ExamPage() {
             exit={{ opacity: 0, y: -12 }}
             transition={{ duration: 0.2 }}
           >
-            <ExamPaperPicker onSelect={handleSelectPaper} />
+            <ExamPaperPicker onSelect={handleSelectPaper} initialSubjectCode={initialSubject} initialComponentFilter={initialComponent} />
           </motion.div>
         )}
 
@@ -303,6 +312,10 @@ export default function ExamPage() {
             </div>
 
             <PhotoUpload photos={photos} onChange={setPhotos} maxPhotos={10} />
+
+            {sessionId && (
+              <QrUpload sessionId={sessionId} onPhotosReceived={handleRemotePhotos} />
+            )}
 
             {error && (
               <p className="text-sm text-red-400 text-center">{error}</p>

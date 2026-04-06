@@ -53,9 +53,12 @@ export async function startSession(
     getPrompt("chat_tutor"),
   ]);
 
-  const blocks = [...planData.today, ...planData.overdue].filter(
-    (b) => b.status === "pending" && b.study_type !== "exam",
+  const NON_STUDY_SUBJECTS = new Set(["PERSONAL", "ART"]);
+  const allPending = [...planData.today, ...planData.overdue].filter(
+    (b) => b.status === "pending" && b.study_type !== "exam" && !NON_STUDY_SUBJECTS.has(b.subject_code),
   );
+  // One block per session — focus on the next pending study block
+  const blocks = allPending.length > 0 ? [allPending[0]] : [];
 
   // Create chat_tutor session
   const { data: session, error: sessionError } = await supabaseAdmin
@@ -1088,28 +1091,27 @@ async function handleAction(
 // ── Greeting Helpers ───────────────────────────────────────
 
 function buildGreeting(mood: Mood, blocks: StudyPlanEntry[]): string {
-  const blockList = blocks
-    .map((b) => b.title)
-    .slice(0, 4)
-    .join(", ");
-
-  const firstBlock = blocks[0];
+  const block = blocks[0];
+  const title = block.title;
+  const timeSlot = block.start_time && block.end_time
+    ? ` (${block.start_time.slice(0, 5)} – ${block.end_time.slice(0, 5)})`
+    : "";
   const typeHint =
-    firstBlock.study_type === "practice"
+    block.study_type === "practice"
       ? " We'll jump straight into questions."
-      : firstBlock.study_type === "final_prep"
+      : block.study_type === "final_prep"
         ? " Quick revision — your exam is coming up soon!"
         : "";
 
   switch (mood) {
     case "unmotivated":
-      return `Hi Luísa! I know today might feel tough, but we'll take it easy. We have: ${blockList}.${typeHint} Let's start slow — one step at a time?`;
+      return `Hi Luísa! I know today might feel tough, but we'll take it easy. This session: **${title}**${timeSlot}.${typeHint} Let's start slow — one step at a time?`;
     case "normal":
-      return `Hi Luísa! Today we have: ${blockList}.${typeHint} Ready to start with ${firstBlock.title}?`;
+      return `Hi Luísa! This session: **${title}**${timeSlot}.${typeHint} Ready to start?`;
     case "good":
-      return `Hi Luísa! Great to see you! We've got: ${blockList}.${typeHint} Let's get into it!`;
+      return `Hi Luísa! Great to see you! Let's work on **${title}**${timeSlot}.${typeHint} Let's get into it!`;
     case "motivated":
-      return `Luísa! Love the energy! Today's lineup: ${blockList}.${typeHint} Let's crush it!`;
+      return `Luísa! Love the energy! Let's crush **${title}**${timeSlot}.${typeHint} Let's go!`;
   }
 }
 

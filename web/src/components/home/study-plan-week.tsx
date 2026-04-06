@@ -131,7 +131,10 @@ export function StudyPlanWeek({ exams }: StudyPlanWeekProps) {
                       <TooltipContent>
                         <p className="font-medium">{block.title}</p>
                         <p className="text-muted-foreground">
-                          {block.planned_hours}h · {block.study_type}
+                          {block.start_time && block.end_time
+                            ? `${block.start_time.slice(0, 5)} – ${block.end_time.slice(0, 5)}`
+                            : `${block.planned_hours}h`}
+                          {" · "}{block.study_type}
                         </p>
                       </TooltipContent>
                     </Tooltip>

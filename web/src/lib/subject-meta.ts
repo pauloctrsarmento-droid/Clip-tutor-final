@@ -7,6 +7,8 @@ import {
   BookOpen,
   Languages,
   FileText,
+  Palette,
+  Calendar,
   type LucideIcon,
 } from "lucide-react";
 
@@ -56,6 +58,16 @@ export const SUBJECT_META: Record<string, SubjectMeta> = {
     icon: FileText,
     gradient: "from-lime-500/20 to-green-500/20",
     accent: "text-lime-400",
+  },
+  ART: {
+    icon: Palette,
+    gradient: "from-pink-500/20 to-rose-500/20",
+    accent: "text-pink-400",
+  },
+  PERSONAL: {
+    icon: Calendar,
+    gradient: "from-gray-500/20 to-slate-500/20",
+    accent: "text-gray-400",
   },
 };
 

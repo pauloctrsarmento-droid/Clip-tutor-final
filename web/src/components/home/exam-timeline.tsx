@@ -28,6 +28,8 @@ const SUBJECT_NAMES: Record<string, string> = {
   "0504": "Portuguese",
   "0500": "English",
   "0475": "Eng. Lit",
+  ART: "Art",
+  PERSONAL: "Personal",
 };
 
 function formatDate(dateStr: string): string {
