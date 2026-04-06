@@ -312,14 +312,54 @@ export async function submitPhotos(options: {
     .replace(/\{\{language\}\}/g, language)
     .replace(/\{\{language_instruction\}\}/g, languageInstruction);
 
-  // Build vision content with student photos
-  const userContent: VisionContentPart[] = [
-    { type: "text", text: "Here are the student's handwritten exam answers. Mark each question strictly against the mark scheme provided in the system prompt:" },
-    ...photoUrls.map((url) => ({
-      type: "image_url" as const,
+  // Fetch cached mark scheme images (converted from PDF by scripts/convert-ms-to-images.py)
+  const msImageUrls: string[] = [];
+  try {
+    const { data: msFiles } = await supabaseAdmin.storage
+      .from("ms-images")
+      .list(paperInfo.id, { sortBy: { column: "name", order: "asc" } });
+
+    if (msFiles && msFiles.length > 0) {
+      for (const f of msFiles) {
+        if (f.name.endsWith(".png")) {
+          const { data: urlData } = supabaseAdmin.storage
+            .from("ms-images")
+            .getPublicUrl(`${paperInfo.id}/${f.name}`);
+          msImageUrls.push(urlData.publicUrl);
+        }
+      }
+    }
+  } catch {
+    // No cached images — fall back to text-only marking
+  }
+
+  // Build vision content: mark scheme images + student photos
+  const userContent: VisionContentPart[] = [];
+
+  if (msImageUrls.length > 0) {
+    userContent.push({
+      type: "text",
+      text: "MARK SCHEME (use these level descriptors and rubric tables to award marks accurately):",
+    });
+    for (const url of msImageUrls) {
+      userContent.push({
+        type: "image_url",
+        image_url: { url, detail: "low" as const },
+      });
+    }
+  }
+
+  userContent.push({
+    type: "text",
+    text: "STUDENT'S HANDWRITTEN ANSWERS (mark each question strictly against the mark scheme):",
+  });
+
+  for (const url of photoUrls) {
+    userContent.push({
+      type: "image_url",
       image_url: { url, detail: "high" as const },
-    })),
-  ];
+    });
+  }
 
   // Call gpt-4o vision
   const llmResponse = await callOpenAI({
