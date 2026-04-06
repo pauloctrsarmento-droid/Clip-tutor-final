@@ -84,7 +84,10 @@ export default function ExamHistoryPage() {
 
   useEffect(() => {
     fetchExamHistory()
-      .then((data: HistoryEntry[]) => setHistory(data))
+      .then((data: { sessions: HistoryEntry[] } | HistoryEntry[]) => {
+        const sessions = Array.isArray(data) ? data : data.sessions ?? [];
+        setHistory(sessions);
+      })
       .finally(() => setLoading(false));
   }, []);
 
