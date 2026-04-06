@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, ChevronDown, ChevronRight } from "lucide-react";
@@ -45,7 +45,7 @@ function getStatusDot(status: string): string {
   }
 }
 
-export default function MasteryDrillDownPage() {
+function MasteryDrillDownInner() {
   const searchParams = useSearchParams();
   const subjectCode = searchParams.get("subject") ?? "";
   const [data, setData] = useState<DrillDownData | null>(null);
@@ -232,5 +232,13 @@ export default function MasteryDrillDownPage() {
         )}
       </div>
     </div>
+  );
+}
+
+export default function MasteryDrillDownPage() {
+  return (
+    <Suspense>
+      <MasteryDrillDownInner />
+    </Suspense>
   );
 }
