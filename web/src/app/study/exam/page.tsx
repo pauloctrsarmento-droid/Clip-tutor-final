@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
@@ -50,7 +50,7 @@ function formatComponentType(ct: string): string {
   return map[ct] ?? ct;
 }
 
-export default function ExamPage() {
+function ExamPageInner() {
   const searchParams = useSearchParams();
   const initialSubject = searchParams.get("subject");
   const initialComponent = searchParams.get("component");
@@ -405,5 +405,13 @@ export default function ExamPage() {
         )}
       </AnimatePresence>
     </div>
+  );
+}
+
+export default function ExamPage() {
+  return (
+    <Suspense>
+      <ExamPageInner />
+    </Suspense>
   );
 }
