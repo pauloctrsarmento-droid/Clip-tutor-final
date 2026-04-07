@@ -11,6 +11,7 @@ import {
   createPlanEntry,
   createPlanEntries,
   parseScheduleImage,
+  fetchSubjectTopicsList,
 } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { getSubjectMeta } from "@/lib/subject-meta";
@@ -127,6 +128,9 @@ export function StudyPlanView() {
   const [addStartTime, setAddStartTime] = useState("");
   const [addEndTime, setAddEndTime] = useState("");
   const [addSaving, setAddSaving] = useState(false);
+  const [addTopicIds, setAddTopicIds] = useState<string[]>([]);
+  const [availableTopics, setAvailableTopics] = useState<Array<{ id: string; topic_code: string; topic_name: string }>>([]);
+  const [topicsLoading, setTopicsLoading] = useState(false);
 
   // Upload/parse modal
   const [showUploadModal, setShowUploadModal] = useState(false);
@@ -157,6 +161,27 @@ export function StudyPlanView() {
   useEffect(() => {
     load();
   }, [load]);
+
+  // Load topics when subject changes in add modal
+  useEffect(() => {
+    if (!showAddModal) return;
+    // Non-study subjects have no topics
+    if (addSubject === "ART" || addSubject === "PERSONAL") {
+      setAvailableTopics([]);
+      setAddTopicIds([]);
+      return;
+    }
+    setTopicsLoading(true);
+    fetchSubjectTopicsList(addSubject)
+      .then((topics) => {
+        const sorted = (topics as Array<{ id: string; topic_code: string; topic_name: string }>)
+          .sort((a, b) => a.topic_code.localeCompare(b.topic_code, undefined, { numeric: true }));
+        setAvailableTopics(sorted);
+      })
+      .catch(() => setAvailableTopics([]))
+      .finally(() => setTopicsLoading(false));
+    setAddTopicIds([]);
+  }, [addSubject, showAddModal]);
 
   const nextExam = exams.find((e) => e.days_remaining >= 0);
 
@@ -244,6 +269,7 @@ export function StudyPlanView() {
         study_type: addType,
         start_time: addStartTime || undefined,
         end_time: addEndTime || undefined,
+        syllabus_topic_ids: addTopicIds.length > 0 ? addTopicIds : undefined,
       });
       toast.success("Block added");
       setShowAddModal(false);
@@ -696,6 +722,44 @@ export function StudyPlanView() {
                 placeholder="e.g. Stoichiometry revision"
               />
             </div>
+            {availableTopics.length > 0 && (
+              <div>
+                <label className="text-xs text-muted-foreground mb-1 block">
+                  Topics {addTopicIds.length > 0 && `(${addTopicIds.length} selected)`}
+                </label>
+                {topicsLoading ? (
+                  <Skeleton className="h-24 rounded-lg" />
+                ) : (
+                  <div className="max-h-[160px] overflow-y-auto border border-border rounded-lg p-1.5 space-y-0.5">
+                    {availableTopics.map((t) => {
+                      const checked = addTopicIds.includes(t.id);
+                      return (
+                        <label
+                          key={t.id}
+                          className={cn(
+                            "flex items-center gap-2 px-2 py-1.5 rounded-md cursor-pointer text-sm transition-colors",
+                            checked ? "bg-primary/10 text-foreground" : "hover:bg-secondary text-muted-foreground"
+                          )}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={() =>
+                              setAddTopicIds((prev) =>
+                                checked ? prev.filter((id) => id !== t.id) : [...prev, t.id]
+                              )
+                            }
+                            className="rounded border-border"
+                          />
+                          <span className="text-[10px] text-muted-foreground/70 w-8 shrink-0">{t.topic_code}</span>
+                          <span className="truncate">{t.topic_name}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
             <div className="grid grid-cols-3 gap-3">
               <div>
                 <label className="text-xs text-muted-foreground mb-1 block">Hours</label>

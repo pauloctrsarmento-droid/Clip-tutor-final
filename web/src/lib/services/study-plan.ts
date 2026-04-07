@@ -47,6 +47,7 @@ export async function createPlanEntries(
     end_time: e.end_time ?? null,
     notes: e.notes ?? null,
     sort_order: e.sort_order ?? i + 1,
+    syllabus_topic_ids: e.syllabus_topic_ids ?? [],
     phase: "full_time" as const,
     status: "pending" as const,
   }));

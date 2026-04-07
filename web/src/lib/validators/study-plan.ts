@@ -54,6 +54,7 @@ export const createPlanEntrySchema = z.object({
   end_time: z.string().regex(/^\d{2}:\d{2}$/).optional(),
   notes: z.string().optional(),
   sort_order: z.number().int().optional(),
+  syllabus_topic_ids: z.array(z.string().uuid()).optional(),
 });
 
 export const createPlanEntriesBatchSchema = z.object({
