@@ -31,6 +31,13 @@ export class AuthorizationError extends AppError {
   }
 }
 
+export class AuthenticationError extends AppError {
+  constructor(message = "Not authenticated") {
+    super(message, "UNAUTHENTICATED", 401);
+    this.name = "AuthenticationError";
+  }
+}
+
 export function errorResponse(error: unknown): Response {
   if (error instanceof AppError) {
     return Response.json(
