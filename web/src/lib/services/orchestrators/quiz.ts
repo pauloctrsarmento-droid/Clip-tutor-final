@@ -284,6 +284,7 @@ export async function evaluateAnswer(options: {
     user: userContent,
     jsonMode: true,
     maxTokens: 2048,
+    temperature: 0,
   });
 
   let evaluation: EvaluationResult;
@@ -313,9 +314,12 @@ export async function evaluateAnswer(options: {
     }
   }
 
-  // For MCQ: override marks with auto-check result
+  // For MCQ: override marks and mark_points with auto-check result
   if (isMcq && mcqCorrect !== null) {
     evaluation.marks_awarded = mcqCorrect ? 1 : 0;
+    if (evaluation.mark_points?.length > 0) {
+      evaluation.mark_points[0].awarded = mcqCorrect;
+    }
   }
 
   // Save attempt

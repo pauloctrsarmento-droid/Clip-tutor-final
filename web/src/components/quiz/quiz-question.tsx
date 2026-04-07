@@ -5,12 +5,15 @@ import { RichText } from "@/components/rich-text";
 import { DiagramViewer } from "./diagram-viewer";
 import { Badge } from "@/components/ui/badge";
 import { cleanForDisplay } from "@/lib/clean-question-text";
+import { parseTableWithBlanks } from "@/lib/parse-table-blanks";
 
 interface QuizQuestionProps {
   questionText: string;
   marks: number;
   parentContext: string | null;
   diagramUrls: string[];
+  /** When true, strip the pipe-table from questionText (interactive table renders separately) */
+  hideTable?: boolean;
 }
 
 const LONG_PASSAGE_THRESHOLD = 800;
@@ -20,12 +23,21 @@ export function QuizQuestion({
   marks,
   parentContext,
   diagramUrls,
+  hideTable,
 }: QuizQuestionProps) {
   const hasDiagram = diagramUrls.length > 0;
 
+  // Strip pipe-table from question text when interactive table renders separately
+  const effectiveQuestionText = useMemo(() => {
+    if (!hideTable) return questionText;
+    const parsed = parseTableWithBlanks(questionText);
+    if (!parsed) return questionText;
+    return [parsed.beforeText, parsed.afterText].filter(Boolean).join("\n\n");
+  }, [questionText, hideTable]);
+
   const cleaned = useMemo(
-    () => cleanForDisplay(questionText, parentContext),
-    [questionText, parentContext],
+    () => cleanForDisplay(effectiveQuestionText, parentContext),
+    [effectiveQuestionText, parentContext],
   );
 
   const isLongPassage =

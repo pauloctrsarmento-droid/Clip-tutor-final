@@ -6,10 +6,13 @@ import { Input } from "@/components/ui/input";
 import { Send, Loader2, Camera } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { PhotoUpload } from "@/components/exam/photo-upload";
+import { hasTableWithBlanks } from "@/lib/parse-table-blanks";
+import { QuizTableInput } from "./quiz-table-input";
 
 interface QuizAnswerInputProps {
   responseType: string;
   options: Record<string, string> | null;
+  questionText?: string;
   onSubmit: (answer: string, photos?: File[]) => void;
   submitting: boolean;
   disabled: boolean;
@@ -19,6 +22,7 @@ interface QuizAnswerInputProps {
 export function QuizAnswerInput({
   responseType,
   options,
+  questionText,
   onSubmit,
   submitting,
   disabled,
@@ -28,6 +32,18 @@ export function QuizAnswerInput({
   const [selectedOption, setSelectedOption] = useState<string | null>(null);
   const [photos, setPhotos] = useState<File[]>([]);
   const [showUpload, setShowUpload] = useState(false);
+
+  // Auto-detect table with blanks — render interactive table instead of textarea
+  if (questionText && hasTableWithBlanks(questionText)) {
+    return (
+      <QuizTableInput
+        questionText={questionText}
+        onSubmit={(answer) => onSubmit(answer)}
+        submitting={submitting}
+        disabled={disabled}
+      />
+    );
+  }
 
   if (responseType === "mcq" && options) {
     return (

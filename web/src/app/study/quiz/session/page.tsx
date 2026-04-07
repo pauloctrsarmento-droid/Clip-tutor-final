@@ -9,6 +9,7 @@ import { QuizQuestion } from "@/components/quiz/quiz-question";
 import { QuizAnswerInput } from "@/components/quiz/quiz-answer-input";
 import { QuizFeedback } from "@/components/quiz/quiz-feedback";
 import { QuizSummary } from "@/components/quiz/quiz-summary";
+import { hasTableWithBlanks } from "@/lib/parse-table-blanks";
 import { Skeleton } from "@/components/ui/skeleton";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -202,6 +203,7 @@ function QuizSessionInner() {
               marks={question.marks}
               parentContext={question.parent_context}
               diagramUrls={question.diagram_urls}
+              hideTable={hasTableWithBlanks(question.question_text)}
             />
 
             {/* Answer input (hidden during feedback) */}
@@ -209,6 +211,7 @@ function QuizSessionInner() {
               <QuizAnswerInput
                 responseType={question.response_type}
                 options={question.options}
+                questionText={question.question_text}
                 onSubmit={handleSubmit}
                 submitting={evaluating}
                 disabled={false}
