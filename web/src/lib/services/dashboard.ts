@@ -115,9 +115,11 @@ export async function getSubjectMastery(
       masteredTopics = (topicMastery ?? []).filter(
         (r) => (r.mastery_score as number) >= MASTERY.MASTERED_THRESHOLD
       ).length;
-      masteryPercent = totalTopics > 0
-        ? Math.round((masteredTopics / totalTopics) * 100)
-        : 0;
+      // Average mastery score across all topics (consistent with drill-down view)
+      const avgScore = (topicMastery ?? []).reduce(
+        (sum, r) => sum + (r.mastery_score as number), 0
+      ) / totalTopics;
+      masteryPercent = totalTopics > 0 ? Math.round(avgScore * 100) : 0;
     }
 
     // Quiz stats for this subject

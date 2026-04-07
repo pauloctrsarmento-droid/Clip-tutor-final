@@ -77,7 +77,7 @@ export function MasteryGrid({ subjects }: MasteryGridProps) {
             {/* Stats */}
             <div className="flex items-end justify-between">
               <p className="text-[11px] text-muted-foreground">
-                {subject.mastered_facts}/{subject.total_facts} mastered
+                {subject.mastered_facts}/{subject.total_facts} topics mastered
               </p>
               <span className="text-lg font-heading font-bold text-foreground">
                 {subject.mastery_percent}%
