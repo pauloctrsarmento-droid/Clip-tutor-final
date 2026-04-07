@@ -1,8 +1,9 @@
 "use client";
 
+import Link from "next/link";
 import { useAuth } from "@/lib/auth-context";
 import { getSubjectMeta } from "@/lib/subject-meta";
-import { GraduationCap, LogOut, BarChart3, CalendarDays, MessageSquare, User, FileText } from "lucide-react";
+import { GraduationCap, LogOut, BarChart3, CalendarDays, MessageSquare, User, FileText, Home } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
@@ -144,7 +145,16 @@ export function AdminSidebar({
       <Separator className="bg-sidebar-border" />
 
       {/* Footer */}
-      <div className="p-3">
+      <div className="p-3 space-y-1">
+        <Link
+          href="/study"
+          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-pointer
+                     text-muted-foreground hover:text-primary hover:bg-primary/10
+                     transition-colors duration-200"
+        >
+          <Home className="w-4 h-4" />
+          <span className="text-sm">Back to Home</span>
+        </Link>
         <button
           onClick={logout}
           className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-pointer
