@@ -100,7 +100,7 @@ export function HomeHeader({ overview, todayBlocks, subjects, exams }: HomeHeade
           </span>
         </div>
         <Link
-          href="/"
+          href="/admin"
           className="p-2 rounded-lg hover:bg-muted transition-colors cursor-pointer"
         >
           <Settings className="w-4 h-4 text-muted-foreground" />
