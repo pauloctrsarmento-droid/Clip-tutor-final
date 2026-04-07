@@ -3,13 +3,13 @@
 import { useEffect, useRef } from "react";
 import { ChatMessage, TypingIndicator } from "./ChatMessage";
 import { ChatInput } from "./ChatInput";
-import type { ChatMessage as ChatMessageType } from "@/lib/types";
+import type { ChatMessage as ChatMessageType, Attachment } from "@/lib/types";
 
 interface ChatPanelProps {
   messages: ChatMessageType[];
   streamingText: string;
   isStreaming: boolean;
-  onSendMessage: (text: string, images?: string[]) => void;
+  onSendMessage: (text: string, attachments?: Attachment[]) => void;
   disabled?: boolean;
 }
 
@@ -42,6 +42,7 @@ export function ChatPanel({
             role={msg.role === "system" ? "assistant" : msg.role}
             content={msg.content}
             images={msg.images}
+            attachments={msg.attachments}
           />
         ))}
 

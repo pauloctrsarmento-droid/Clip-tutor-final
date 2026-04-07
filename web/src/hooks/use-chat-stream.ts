@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef } from "react";
 import { sendSessionMessage } from "@/lib/api";
 import { parseSessionStream } from "@/lib/stream-parser";
-import type { TutorAction, TutorInternal, ChatMessage } from "@/lib/types";
+import type { TutorAction, TutorInternal, ChatMessage, Attachment } from "@/lib/types";
 
 interface ChatStreamState {
   messages: ChatMessage[];
@@ -43,7 +43,7 @@ export function useChatStream(sessionId: string | null) {
   }, []);
 
   const sendMessage = useCallback(
-    async (text: string, images?: string[]) => {
+    async (text: string, attachments?: Attachment[]) => {
       if (!sessionId) return;
 
       // Add user message to local state
@@ -51,7 +51,8 @@ export function useChatStream(sessionId: string | null) {
         session_id: sessionId,
         role: "user",
         content: text,
-        images: images ?? [],
+        images: [],
+        attachments: attachments ?? [],
         action: null,
         internal: null,
       });
@@ -65,7 +66,7 @@ export function useChatStream(sessionId: string | null) {
       }));
 
       try {
-        const response = await sendSessionMessage(sessionId, text, images);
+        const response = await sendSessionMessage(sessionId, text, attachments);
 
         let fullText = "";
         let action: TutorAction | null = null;

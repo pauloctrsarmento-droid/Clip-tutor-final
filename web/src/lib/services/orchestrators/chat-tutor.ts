@@ -22,7 +22,11 @@ import type {
   TutorAction,
   TutorInternal,
   BlockPhase,
+  Attachment,
+  SummaryReview,
 } from "@/lib/types";
+import { getMimeFromDataUrl } from "@/lib/types";
+import { extractDocxText } from "@/lib/docx-extract";
 
 // ── Constants ──────────────────────────────────────────────
 
@@ -107,7 +111,10 @@ export async function startSession(
 export interface SendMessageOptions {
   sessionId: string;
   message: string;
+  /** Legacy image-only field. */
   images?: string[];
+  /** Rich attachments (images, PDFs, Word docs). */
+  attachments?: Attachment[];
   studentId?: string;
 }
 
@@ -126,14 +133,20 @@ export interface SendMessageOptions {
 export async function sendMessage(
   options: SendMessageOptions,
 ): Promise<ReadableStream<Uint8Array>> {
-  const { sessionId, message, images, studentId = STUDENT_ID } = options;
+  const { sessionId, message, images, attachments, studentId = STUDENT_ID } = options;
 
-  // Save user message
+  // Normalize: prefer attachments, fall back to legacy images
+  const allAttachments: Attachment[] = attachments ?? images?.map((url, i) => ({
+    url,
+    name: `Image ${i + 1}`,
+  })) ?? [];
+
+  // Save user message (store URLs in images column for backward compat)
   await supabaseAdmin.from("chat_messages").insert({
     session_id: sessionId,
     role: "user",
     content: message,
-    images: images ?? [],
+    images: allAttachments.map((a) => a.url),
   });
 
   // Load session state + messages + build prompt in parallel
@@ -156,16 +169,45 @@ export async function sendMessage(
   }));
   chatHistory.pop(); // Remove last user message (goes as current 'user' param)
 
-  // Build user content
+  // Build user content — route each attachment by MIME type
   let userContent: string | VisionContentPart[];
-  if (images && images.length > 0) {
-    userContent = [
+  if (allAttachments.length > 0) {
+    const parts: VisionContentPart[] = [
       { type: "text" as const, text: message },
-      ...images.map((url) => ({
-        type: "image_url" as const,
-        image_url: { url, detail: "high" as const },
-      })),
     ];
+
+    for (const att of allAttachments) {
+      const mime = getMimeFromDataUrl(att.url);
+
+      if (mime.startsWith("image/")) {
+        // Images → vision image_url
+        parts.push({
+          type: "image_url" as const,
+          image_url: { url: att.url, detail: "high" as const },
+        });
+      } else if (mime === "application/pdf") {
+        // PDFs → GPT-4o native file input (handles scanned/handwritten PDFs)
+        parts.push({
+          type: "file" as const,
+          file: { filename: att.name, file_data: att.url },
+        });
+      } else if (
+        mime === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
+        mime === "application/msword" ||
+        att.name.endsWith(".docx") ||
+        att.name.endsWith(".doc")
+      ) {
+        // Word documents → extract text with mammoth
+        const base64 = att.url.replace(/^data:[^;]+;base64,/, "");
+        const text = await extractDocxText(Buffer.from(base64, "base64"));
+        parts.push({
+          type: "text" as const,
+          text: `[Document: ${att.name}]\n${text}`,
+        });
+      }
+    }
+
+    userContent = parts;
   } else {
     userContent = message;
   }
@@ -224,6 +266,16 @@ export async function sendMessage(
 
         let action = detected.action;
         const internal = detected.internal;
+
+        // Summary review takes priority when attachments are present
+        if (isSummaryUpload(message, fullResponse, allAttachments.length > 0)) {
+          const topicName = allBlocks[currentBlockIndex]?.title ?? "General";
+          const subjectCode = (session.subject_code as string) ?? "0620";
+          const review = await generateSummaryReview(message, allAttachments, topicName, subjectCode);
+          if (review) {
+            action = { type: "show_summary_review", config: review };
+          }
+        }
 
         // If diagram requested, generate Mermaid code
         if (action?.type === "show_diagram" && action.config.diagram_type === "mermaid") {
@@ -302,8 +354,10 @@ Available actions (use ONLY when clearly intended):
 - {"type":"end_session","config":{"reason":"completed"}} — session ending
 
 Rules:
+- Current block phase: ${blockPhase}
 - For show_diagram, only set title and diagram_type. Do NOT generate diagram code.
-- For launch_quiz/flashcards, only emit if the STUDENT explicitly agreed (said yes, sure, ok, etc.)
+- For launch_quiz/flashcards: ONLY emit if the STUDENT's message contains explicit agreement (yes, sure, ok, let's do it, ready, etc.). The tutor asking "Question for you..." or "Can you figure out..." is a TEACHING question embedded in conversation, NOT a quiz launch. Never emit launch_quiz based on the tutor's text alone.
+- During "intro" or "explanation" phase: do NOT emit launch_quiz/launch_flashcards unless the student explicitly requested or agreed to it.
 - Default action is null (no action needed for normal conversation)
 - current_phase should reflect what the tutor is doing: intro, explanation, quiz, or transition`,
     user: `Student said: "${userMessage}"\n\nTutor responded:\n${assistantText.slice(0, 1500)}`,
@@ -313,9 +367,105 @@ Rules:
   });
 
   try {
-    return JSON.parse(result) as { action: TutorAction | null; internal: TutorInternal };
+    const parsed = JSON.parse(result) as { action: TutorAction | null; internal: TutorInternal };
+
+    // Hard guard: launch_quiz/launch_flashcards require explicit student agreement
+    // The LLM detector is unreliable — verify the student's actual words
+    if (parsed.action?.type === "launch_quiz" || parsed.action?.type === "launch_flashcards") {
+      const studentAgreed = /\b(yes|yeah|sure|ok|okay|let'?s|ready|go|start|bring it|do it|yep|yea|sim|vamos|bora)\b/i.test(userMessage);
+      if (!studentAgreed) {
+        parsed.action = null;
+      }
+    }
+
+    return parsed;
   } catch {
     return { action: null, internal: { current_phase: blockPhase as BlockPhase, time_elapsed_minutes: 0, block_progress: "1/1" } };
+  }
+}
+
+// ── Summary Review Detection & Generation ───────────────────
+
+function isSummaryUpload(userMessage: string, llmResponse: string, hasAttachments: boolean): boolean {
+  if (!hasAttachments) return false;
+  const combined = userMessage + " " + llmResponse;
+  return /\b(summar|notes?|revis|review|check|correct|feedback|grade|rate|look at|analys|avaliar|corrigir|resumo|verific)/i.test(combined);
+}
+
+async function buildAttachmentParts(attachments: Attachment[]): Promise<VisionContentPart[]> {
+  const parts: VisionContentPart[] = [];
+  for (const att of attachments) {
+    const mime = getMimeFromDataUrl(att.url);
+    if (mime.startsWith("image/")) {
+      parts.push({ type: "image_url" as const, image_url: { url: att.url, detail: "high" as const } });
+    } else if (mime === "application/pdf") {
+      parts.push({ type: "file" as const, file: { filename: att.name, file_data: att.url } });
+    } else if (
+      mime === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
+      mime === "application/msword" ||
+      att.name.endsWith(".docx") || att.name.endsWith(".doc")
+    ) {
+      const base64 = att.url.replace(/^data:[^;]+;base64,/, "");
+      const text = await extractDocxText(Buffer.from(base64, "base64"));
+      parts.push({ type: "text" as const, text: `[Document: ${att.name}]\n${text}` });
+    }
+  }
+  return parts;
+}
+
+async function generateSummaryReview(
+  userMessage: string,
+  attachments: Attachment[],
+  topicName: string,
+  subjectCode: string,
+): Promise<SummaryReview | null> {
+  const attachmentParts = await buildAttachmentParts(attachments);
+
+  const userContent: VisionContentPart[] = [
+    { type: "text" as const, text: `Student message: "${userMessage}"\n\nAnalyze the attached summary/notes for the topic "${topicName}" (${subjectCode}, IGCSE level). Return a JSON review.` },
+    ...attachmentParts,
+  ];
+
+  const result = await callOpenAI({
+    system: `You are an IGCSE examiner reviewing a student's summary/notes. Analyze the content and return JSON matching this exact schema:
+
+{
+  "topic": "string — the topic being reviewed",
+  "score": number 0-100,
+  "grade": "A*" | "A" | "B" | "C" | "D" | "E" | "U",
+  "items": [
+    {
+      "type": "correct" | "error" | "missing",
+      "original": "what the student wrote (only for errors)",
+      "corrected": "the correct/expected statement",
+      "explanation": "brief explanation why"
+    }
+  ],
+  "corrected_version": "A complete improved version of the summary in markdown"
+}
+
+Rules:
+- Score based on accuracy, completeness, and use of correct terminology
+- Include 3-10 items covering the most important points
+- For "correct" items: highlight what the student got right with proper terminology
+- For "error" items: show original (wrong) → corrected, explain the misconception
+- For "missing" items: key concepts the student should have included
+- corrected_version should be a polished, complete summary using **bold** for key terms
+- Grade bands: A*(90+), A(80-89), B(70-79), C(60-69), D(50-59), E(40-49), U(<40)
+- Always be encouraging — start with correct items when possible
+- If the content is handwritten, do your best to read and interpret it`,
+    user: userContent,
+    maxTokens: 1500,
+    jsonMode: true,
+  });
+
+  try {
+    const parsed: unknown = JSON.parse(result);
+    const review = parsed as SummaryReview;
+    if (typeof review.score !== "number" || !Array.isArray(review.items)) return null;
+    return review;
+  } catch {
+    return null;
   }
 }
 

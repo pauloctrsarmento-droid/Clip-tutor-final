@@ -3,7 +3,8 @@ import { OPENAI_MODEL } from "@/lib/constants";
 /** A single part of a vision content array. */
 export type VisionContentPart =
   | { type: "text"; text: string }
-  | { type: "image_url"; image_url: { url: string; detail?: "low" | "high" | "auto" } };
+  | { type: "image_url"; image_url: { url: string; detail?: "low" | "high" | "auto" } }
+  | { type: "file"; file: { filename: string; file_data: string } };
 
 interface CallOpenAIOptions {
   system: string;

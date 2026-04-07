@@ -86,15 +86,52 @@ export interface StudySession {
 
 export type Mood = "unmotivated" | "normal" | "good" | "motivated";
 
+/** A file attached to a chat message (image, PDF, or Word document). */
+export interface Attachment {
+  url: string;
+  name: string;
+}
+
+/** Helper to detect MIME type from a data URL. */
+export function getMimeFromDataUrl(dataUrl: string): string {
+  const match = dataUrl.match(/^data:([^;]+);/);
+  return match?.[1] ?? "application/octet-stream";
+}
+
+/** Check if a data URL is an image. */
+export function isImageAttachment(url: string): boolean {
+  return getMimeFromDataUrl(url).startsWith("image/");
+}
+
 export interface ChatMessage {
   id: string;
   session_id: string;
   role: "user" | "assistant" | "system";
   content: string;
   images: string[];
+  attachments?: Attachment[];
   action: TutorAction | null;
   internal: TutorInternal | null;
   created_at: string;
+}
+
+// ============================================================
+// Summary Review
+// ============================================================
+
+export interface SummaryReviewItem {
+  type: "correct" | "error" | "missing";
+  original?: string;
+  corrected: string;
+  explanation: string;
+}
+
+export interface SummaryReview {
+  topic: string;
+  score: number;
+  grade: string;
+  items: SummaryReviewItem[];
+  corrected_version: string;
 }
 
 /** Actions the tutor can emit to control the activity panel. */
@@ -103,6 +140,7 @@ export type TutorAction =
   | { type: "launch_flashcards"; config: { topic_id: string; count: number } }
   | { type: "show_content"; config: { title: string; content: string; diagram_url?: string } }
   | { type: "show_diagram"; config: { title: string; diagram_type: "mermaid" | "dalle"; mermaid_code?: string; dalle_prompt?: string } }
+  | { type: "show_summary_review"; config: SummaryReview }
   | { type: "clear_panel"; config: Record<string, never> }
   | { type: "end_block"; config: { completed_block_index: number; next_subject?: string } }
   | { type: "end_session"; config: { reason: "completed" } };

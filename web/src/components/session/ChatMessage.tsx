@@ -1,13 +1,18 @@
 "use client";
 
-import { GraduationCap, User } from "lucide-react";
+import { GraduationCap, User, FileText } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ChatRichText } from "./ChatRichText";
+import { isImageAttachment } from "@/lib/types";
+import type { Attachment } from "@/lib/types";
 
 interface ChatMessageProps {
   role: "user" | "assistant" | "system";
   content: string;
+  /** Legacy image-only URLs (backward compat with DB rows). */
   images?: string[];
+  /** Rich attachments with name metadata. */
+  attachments?: Attachment[];
   isStreaming?: boolean;
 }
 
@@ -15,9 +20,18 @@ export function ChatMessage({
   role,
   content,
   images,
+  attachments,
   isStreaming,
 }: ChatMessageProps) {
   const isAssistant = role === "assistant";
+
+  // Merge legacy images into attachments for unified rendering
+  const allAttachments: Attachment[] = [
+    ...(attachments ?? []),
+    ...(images ?? [])
+      .filter((url) => !attachments?.some((a) => a.url === url))
+      .map((url, i) => ({ url, name: `Attachment ${i + 1}` })),
+  ];
 
   return (
     <div
@@ -51,17 +65,29 @@ export function ChatMessage({
             : "bg-primary/15 text-foreground",
         )}
       >
-        {/* Image thumbnails */}
-        {images && images.length > 0 && (
+        {/* Attachment previews */}
+        {allAttachments.length > 0 && (
           <div className="flex flex-wrap gap-2 mb-2">
-            {images.map((url, i) => (
-              <img
-                key={i}
-                src={url}
-                alt={`Attachment ${i + 1}`}
-                className="w-32 h-32 object-cover rounded-lg border border-border/50 cursor-pointer hover:opacity-80 transition-opacity"
-              />
-            ))}
+            {allAttachments.map((att, i) =>
+              isImageAttachment(att.url) ? (
+                <img
+                  key={i}
+                  src={att.url}
+                  alt={att.name}
+                  className="w-32 h-32 object-cover rounded-lg border border-border/50 cursor-pointer hover:opacity-80 transition-opacity"
+                />
+              ) : (
+                <div
+                  key={i}
+                  className="flex items-center gap-2 rounded-lg border border-border/50 bg-muted/50 px-3 py-2"
+                >
+                  <FileText className="w-5 h-5 text-muted-foreground shrink-0" />
+                  <span className="text-xs text-muted-foreground truncate max-w-[150px]">
+                    {att.name}
+                  </span>
+                </div>
+              ),
+            )}
           </div>
         )}
 

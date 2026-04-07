@@ -5,8 +5,9 @@ import { ActivityEmpty } from "./ActivityEmpty";
 import { ActivityQuiz } from "./ActivityQuiz";
 import { ActivityFlashcards } from "./ActivityFlashcards";
 import { ActivityContent } from "./ActivityContent";
+import { ActivitySummaryReview } from "./ActivitySummaryReview";
 import { MermaidDiagram } from "./MermaidDiagram";
-import type { TutorAction } from "@/lib/types";
+import type { TutorAction, SummaryReview } from "@/lib/types";
 import type { QuizSummaryData } from "@/hooks/use-embedded-quiz";
 import type { FlashcardSummaryData } from "@/hooks/use-embedded-flashcards";
 
@@ -16,7 +17,8 @@ export type ActivityState =
   | { type: "flashcards"; subjectCode: string; topicId?: string; count?: number }
   | { type: "content"; title: string; content: string; diagramUrl?: string }
   | { type: "mermaid"; title: string; code: string }
-  | { type: "image"; title: string; url: string };
+  | { type: "image"; title: string; url: string }
+  | { type: "summary_review"; review: SummaryReview };
 
 interface ActivityPanelProps {
   activity: ActivityState;
@@ -95,6 +97,10 @@ export function ActivityPanel({
             </div>
           )}
 
+          {activity.type === "summary_review" && (
+            <ActivitySummaryReview review={activity.review} />
+          )}
+
           {activity.type === "image" && (
             <div className="p-6 h-full overflow-y-auto">
               <h3 className="text-lg font-heading font-semibold text-foreground mb-4">
@@ -152,6 +158,8 @@ export function actionToActivity(
         return { type: "content", title: action.config.title, content: "Generating diagram..." };
       }
       return null;
+    case "show_summary_review":
+      return { type: "summary_review", review: action.config };
     case "clear_panel":
     case "end_block":
     case "end_session":
