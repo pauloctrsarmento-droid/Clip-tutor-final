@@ -21,7 +21,7 @@ export async function getOverview(
       .eq("id", studentId)
       .single(),
     supabaseAdmin
-      .from("student_fact_mastery")
+      .from("student_topic_mastery")
       .select("mastery_score")
       .eq("student_id", studentId),
     supabaseAdmin
@@ -39,7 +39,7 @@ export async function getOverview(
   const flashcardRows = flashcardRes.data ?? [];
   const quizRows = quizRes.data ?? [];
 
-  // Mastery % = (mastered facts / total tracked facts)
+  // Mastery % = (mastered topics / total tracked topics)
   const totalTracked = masteryRows.length;
   const masteredCount = masteryRows.filter(
     (r) => (r.mastery_score as number) >= MASTERY.MASTERED_THRESHOLD
@@ -87,38 +87,38 @@ export async function getSubjectMastery(
   const results: SubjectMastery[] = [];
 
   for (const s of subjects) {
-    // Count facts and mastery for this subject
-    const { data: facts } = await supabaseAdmin
-      .from("atomic_facts")
+    // Get topics for this subject
+    const { data: subjectRow } = await supabaseAdmin
+      .from("subjects")
       .select("id")
-      .eq("subject_code", s.code)
-      .eq("is_active", true);
+      .eq("code", s.code)
+      .single();
 
-    const totalFacts = facts?.length ?? 0;
-    if (totalFacts === 0) {
-      results.push({
-        subject_code: s.code as string,
-        subject_name: s.name as string,
-        total_facts: 0,
-        mastered_facts: 0,
-        mastery_percent: 0,
-        quiz_attempts: 0,
-        quiz_accuracy: 0,
-      });
-      continue;
+    const { data: topics } = await supabaseAdmin
+      .from("syllabus_topics")
+      .select("id")
+      .eq("subject_id", subjectRow?.id);
+
+    const totalTopics = topics?.length ?? 0;
+    const topicIds = (topics ?? []).map((t) => t.id as string);
+
+    // Get topic mastery for this subject
+    let masteredTopics = 0;
+    let masteryPercent = 0;
+    if (topicIds.length > 0) {
+      const { data: topicMastery } = await supabaseAdmin
+        .from("student_topic_mastery")
+        .select("mastery_score")
+        .eq("student_id", studentId)
+        .in("syllabus_topic_id", topicIds);
+
+      masteredTopics = (topicMastery ?? []).filter(
+        (r) => (r.mastery_score as number) >= MASTERY.MASTERED_THRESHOLD
+      ).length;
+      masteryPercent = totalTopics > 0
+        ? Math.round((masteredTopics / totalTopics) * 100)
+        : 0;
     }
-
-    const factIds = facts!.map((f) => f.id as string);
-
-    const { data: masteryRows } = await supabaseAdmin
-      .from("student_fact_mastery")
-      .select("mastery_score")
-      .eq("student_id", studentId)
-      .in("fact_id", factIds);
-
-    const masteredFacts = (masteryRows ?? []).filter(
-      (r) => (r.mastery_score as number) >= MASTERY.MASTERED_THRESHOLD
-    ).length;
 
     // Quiz stats for this subject
     const { data: quizzes } = await supabaseAdmin
@@ -126,7 +126,6 @@ export async function getSubjectMastery(
       .select("marks_awarded, marks_available, question_id")
       .eq("student_id", studentId);
 
-    // Filter to this subject's questions (by prefix)
     const subjectQuizzes = (quizzes ?? []).filter((q) =>
       (q.question_id as string).startsWith(s.code as string)
     );
@@ -139,9 +138,9 @@ export async function getSubjectMastery(
     results.push({
       subject_code: s.code as string,
       subject_name: s.name as string,
-      total_facts: totalFacts,
-      mastered_facts: masteredFacts,
-      mastery_percent: Math.round((masteredFacts / totalFacts) * 100),
+      total_facts: totalTopics,
+      mastered_facts: masteredTopics,
+      mastery_percent: masteryPercent,
       quiz_attempts: quizAttempts,
       quiz_accuracy:
         quizAttempts > 0 ? Math.round((quizCorrect / quizAttempts) * 100) : 0,
