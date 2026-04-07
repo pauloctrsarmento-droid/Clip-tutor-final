@@ -135,12 +135,12 @@ export async function endFlashcards(sessionId: string) {
 }
 
 export async function fetchSubjectTopicsList(subjectCode: string) {
-  const res = await fetch(`${BASE}/api/subjects?code=${subjectCode}`);
-  if (!res.ok) throw new Error("Failed to fetch subject");
-  const subjects = await res.json();
-  if (!subjects.length) throw new Error("Subject not found");
-  const subjectId = subjects[0].id;
-  return fetchSubjectTopics(subjectId);
+  const res = await fetch(`${BASE}/api/subjects`);
+  if (!res.ok) throw new Error("Failed to fetch subjects");
+  const subjects = await res.json() as Array<{ id: string; code: string }>;
+  const match = subjects.find((s) => s.code === subjectCode);
+  if (!match) throw new Error("Subject not found");
+  return fetchSubjectTopics(match.id);
 }
 
 // ============================================================
