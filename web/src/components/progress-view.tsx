@@ -126,7 +126,7 @@ export function ProgressView() {
   return (
     <div className="p-8 space-y-8">
       <h2 className="font-heading text-2xl font-bold tracking-tight">
-        Progresso da Luísa
+        Your Progress
       </h2>
 
       {/* Stats cards */}

@@ -31,7 +31,7 @@ export async function getPlanEntries(options: {
 /**
  * Get today's blocks + any overdue pending blocks.
  */
-/** Get today's date in Luísa's timezone (Europe/Lisbon) — format YYYY-MM-DD */
+/** Get today's date in student timezone (Europe/Lisbon) — format YYYY-MM-DD */
 function getTodayDate(): string {
   return new Date().toLocaleDateString("en-CA", { timeZone: "Europe/Lisbon" });
 }

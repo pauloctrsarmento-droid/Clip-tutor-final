@@ -1,10 +1,11 @@
 import type { Metadata } from "next";
 import { GraduationCap } from "lucide-react";
 import Link from "next/link";
+import { SignOutButton } from "@/components/home/sign-out-button";
 
 export const metadata: Metadata = {
   title: "CLIP Tutor — Study",
-  description: "IGCSE study tools for Luísa",
+  description: "IGCSE exam practice platform",
 };
 
 export default function StudyLayout({
@@ -25,6 +26,7 @@ export default function StudyLayout({
               CLIP Tutor
             </span>
           </Link>
+          <SignOutButton />
         </div>
       </header>
 

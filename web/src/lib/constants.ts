@@ -30,7 +30,7 @@ export const MAX_SUGGESTIONS = 5;
 /** OpenAI model for AI features (reschedule, quiz eval, chat tutor) */
 export const OPENAI_MODEL = "gpt-4o";
 
-/** The 6 subjects Luísa actually studies (excludes English Lit 0475, English Lang 0500) */
+/** The 6 IGCSE study subjects (excludes English Lit 0475, English Lang 0500) */
 export const STUDY_SUBJECTS: string[] = ["0620", "0625", "0610", "0478", "0520", "0504"];
 
 /** Subjects with no exam questions — quiz disabled, only flashcards + past papers */

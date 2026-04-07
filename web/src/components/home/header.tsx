@@ -5,6 +5,7 @@ import Link from "next/link";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { LiveClock } from "@/components/home/live-clock";
+import { useAuth } from "@/lib/auth-context";
 import type { StudyPlanEntry, DashboardOverview, SubjectMastery, ExamCalendarEntry } from "@/lib/types";
 import { STUDY_SUBJECTS } from "@/lib/constants";
 
@@ -23,6 +24,8 @@ function getGreeting(): string {
 }
 
 export function HomeHeader({ overview, todayBlocks, subjects, exams }: HomeHeaderProps) {
+  const { studentName } = useAuth();
+  const firstName = studentName?.split(" ")[0] ?? "there";
   const totalFacts = subjects
     .filter((s) => STUDY_SUBJECTS.includes(s.subject_code))
     .reduce((sum, s) => sum + s.total_facts, 0);
@@ -54,7 +57,7 @@ export function HomeHeader({ overview, todayBlocks, subjects, exams }: HomeHeade
       {/* Left: greeting */}
       <div>
         <h1 className="font-heading text-xl sm:text-2xl font-bold text-foreground">
-          {greeting}, Luísa
+          {greeting}, {firstName}
         </h1>
         <p className="text-sm text-muted-foreground mt-0.5">
           {blockCount > 0

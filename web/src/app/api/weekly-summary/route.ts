@@ -37,7 +37,7 @@ export async function GET() {
       .sort((a, b) => a.mastery_percent - b.mastery_percent)
       .slice(0, 2);
 
-    const prompt = `You are a friendly, encouraging study coach for Luísa, a 15-year-old girl preparing for Cambridge IGCSE exams.
+    const prompt = `You are a friendly, encouraging study coach for a student preparing for Cambridge IGCSE exams.
 
 Write a SHORT weekly study summary (3-5 sentences max). Be warm, motivating, and specific. Use simple English.
 

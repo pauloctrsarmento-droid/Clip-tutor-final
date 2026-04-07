@@ -50,12 +50,13 @@ export async function startSession(
     getTodayPlan(studentId),
     supabaseAdmin
       .from("students")
-      .select("tutor_prompt")
+      .select("name, tutor_prompt")
       .eq("id", studentId)
       .single(),
     getPrompt("chat_tutor"),
   ]);
 
+  const studentName = ((studentRes.data?.name as string) ?? "").split(" ")[0] || "there";
   const NON_STUDY_SUBJECTS = new Set(["PERSONAL", "ART"]);
   const allPending = [...planData.today, ...planData.overdue].filter(
     (b) => b.status === "pending" && b.study_type !== "exam" && !NON_STUDY_SUBJECTS.has(b.subject_code),
@@ -86,9 +87,9 @@ export async function startSession(
   let greeting: string;
 
   if (!firstBlock) {
-    greeting = buildFreeStudyGreeting(mood);
+    greeting = buildFreeStudyGreeting(mood, studentName);
   } else {
-    greeting = buildGreeting(mood, blocks);
+    greeting = buildGreeting(mood, blocks, studentName);
   }
 
   // Save greeting as first message in DB (for resume context)
@@ -1246,7 +1247,7 @@ async function handleAction(
 
 // ── Greeting Helpers ───────────────────────────────────────
 
-function buildGreeting(mood: Mood, blocks: StudyPlanEntry[]): string {
+function buildGreeting(mood: Mood, blocks: StudyPlanEntry[], name: string): string {
   const block = blocks[0];
   const title = block.title;
   const timeSlot = block.start_time && block.end_time
@@ -1261,25 +1262,25 @@ function buildGreeting(mood: Mood, blocks: StudyPlanEntry[]): string {
 
   switch (mood) {
     case "unmotivated":
-      return `Hi Luísa! I know today might feel tough, but we'll take it easy. This session: **${title}**${timeSlot}.${typeHint} Let's start slow — one step at a time?`;
+      return `Hi ${name}! I know today might feel tough, but we'll take it easy. This session: **${title}**${timeSlot}.${typeHint} Let's start slow — one step at a time?`;
     case "normal":
-      return `Hi Luísa! This session: **${title}**${timeSlot}.${typeHint} Ready to start?`;
+      return `Hi ${name}! This session: **${title}**${timeSlot}.${typeHint} Ready to start?`;
     case "good":
-      return `Hi Luísa! Great to see you! Let's work on **${title}**${timeSlot}.${typeHint} Let's get into it!`;
+      return `Hi ${name}! Great to see you! Let's work on **${title}**${timeSlot}.${typeHint} Let's get into it!`;
     case "motivated":
-      return `Luísa! Love the energy! Let's crush **${title}**${timeSlot}.${typeHint} Let's go!`;
+      return `${name}! Love the energy! Let's crush **${title}**${timeSlot}.${typeHint} Let's go!`;
   }
 }
 
-function buildFreeStudyGreeting(mood: Mood): string {
+function buildFreeStudyGreeting(mood: Mood, name: string): string {
   switch (mood) {
     case "unmotivated":
-      return "Hi Luísa! No scheduled blocks today — let's just review whatever feels right. What subject would you like to look at?";
+      return `Hi ${name}! No scheduled blocks today — let's just review whatever feels right. What subject would you like to look at?`;
     case "normal":
-      return "Hi Luísa! Your schedule is clear today. Want to review some weak topics or practice something specific?";
+      return `Hi ${name}! Your schedule is clear today. Want to review some weak topics or practice something specific?`;
     case "good":
-      return "Hi Luísa! Free study day! Want to tackle some weak spots or explore something interesting?";
+      return `Hi ${name}! Free study day! Want to tackle some weak spots or explore something interesting?`;
     case "motivated":
-      return "Luísa! No schedule constraints today — perfect for deep diving! What do you want to master?";
+      return `${name}! No schedule constraints today — perfect for deep diving! What do you want to master?`;
   }
 }
