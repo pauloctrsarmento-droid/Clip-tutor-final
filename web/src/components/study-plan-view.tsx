@@ -751,10 +751,13 @@ export function StudyPlanView() {
                                 checked ? prev.filter((id) => id !== t.id) : [...prev, t.id]
                               )
                             }
-                            className="rounded border-border"
+                            className="rounded border-border shrink-0"
                           />
-                          <span className="text-[10px] text-muted-foreground/70 w-8 shrink-0">{t.topic_code}</span>
-                          <span className="truncate">{t.topic_name}</span>
+                          <span className="text-xs">
+                            <span className="text-muted-foreground/60">{t.topic_code.replace(/_/g, " ")}</span>
+                            {" — "}
+                            {t.topic_name}
+                          </span>
                         </label>
                       );
                     })}
