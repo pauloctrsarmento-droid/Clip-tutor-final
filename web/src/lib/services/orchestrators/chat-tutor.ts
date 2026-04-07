@@ -14,6 +14,7 @@ import {
   STUDENT_ID,
   SUBJECT_LANGUAGE,
   SUBJECT_LANG_CODE,
+  QUIZ_DISABLED_SUBJECTS,
 } from "@/lib/constants";
 import type {
   Mood,
@@ -266,6 +267,15 @@ export async function sendMessage(
 
         let action = detected.action;
         const internal = detected.internal;
+
+        // Language subjects have no quiz questions — convert to flashcards
+        const sessionSubject = (session.subject_code as string) ?? "";
+        if (action?.type === "launch_quiz" && QUIZ_DISABLED_SUBJECTS.has(sessionSubject)) {
+          action = {
+            type: "launch_flashcards",
+            config: { topic_id: action.config.topic_id, count: 12 },
+          };
+        }
 
         // Summary review takes priority when attachments are present
         if (isSummaryUpload(message, fullResponse, allAttachments.length > 0)) {

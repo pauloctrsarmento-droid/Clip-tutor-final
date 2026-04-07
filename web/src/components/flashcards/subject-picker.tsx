@@ -30,11 +30,13 @@ interface SubjectPickerProps {
   onStart: (subjectCode: string, topicId?: string) => void;
   title?: string;
   subtitle?: string;
+  /** Subject codes where selection is blocked (shows "Not available" overlay) */
+  disabledSubjects?: Set<string>;
 }
 
 // Filtered by STUDY_SUBJECTS from constants
 
-export function SubjectPicker({ onStart, title = "Flashcards", subtitle }: SubjectPickerProps) {
+export function SubjectPicker({ onStart, title = "Flashcards", subtitle, disabledSubjects }: SubjectPickerProps) {
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedSubject, setSelectedSubject] = useState<Subject | null>(null);
@@ -107,6 +109,7 @@ export function SubjectPicker({ onStart, title = "Flashcards", subtitle }: Subje
             {subjects.map((subject, i) => {
               const meta = getSubjectMeta(subject.code);
               const Icon = meta.icon;
+              const isDisabled = disabledSubjects?.has(subject.code) ?? false;
 
               return (
                 <motion.button
@@ -114,15 +117,24 @@ export function SubjectPicker({ onStart, title = "Flashcards", subtitle }: Subje
                   initial={{ opacity: 0, y: 16 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: i * 0.05, duration: 0.3 }}
-                  onClick={() => handleSelectSubject(subject)}
+                  onClick={isDisabled ? undefined : () => handleSelectSubject(subject)}
+                  disabled={isDisabled}
                   className={cn(
-                    "group relative text-left p-6 rounded-2xl cursor-pointer",
+                    "group relative text-left p-6 rounded-2xl",
                     "bg-card border border-border",
-                    "hover:border-primary/30 hover:shadow-lg hover:shadow-primary/5",
-                    "active:scale-[0.98]",
-                    "transition-all duration-200"
+                    "transition-all duration-200",
+                    isDisabled
+                      ? "opacity-50 cursor-not-allowed"
+                      : "cursor-pointer hover:border-primary/30 hover:shadow-lg hover:shadow-primary/5 active:scale-[0.98]"
                   )}
                 >
+                  {isDisabled && (
+                    <div className="absolute inset-0 rounded-2xl flex items-center justify-center z-10">
+                      <div className="bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-1.5">
+                        <span className="text-xs font-semibold text-red-400">Not available yet</span>
+                      </div>
+                    </div>
+                  )}
                   <div className="space-y-3">
                     <div
                       className={cn(
@@ -141,11 +153,13 @@ export function SubjectPicker({ onStart, title = "Flashcards", subtitle }: Subje
                       </p>
                     </div>
                   </div>
-                  <ChevronRight
-                    className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground
-                               opacity-0 group-hover:opacity-100 group-hover:translate-x-0.5
-                               transition-all duration-200"
-                  />
+                  {!isDisabled && (
+                    <ChevronRight
+                      className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground
+                                 opacity-0 group-hover:opacity-100 group-hover:translate-x-0.5
+                                 transition-all duration-200"
+                    />
+                  )}
                 </motion.button>
               );
             })}

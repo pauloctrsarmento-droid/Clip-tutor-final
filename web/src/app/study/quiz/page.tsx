@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { SubjectPicker } from "@/components/flashcards/subject-picker";
-import { Button } from "@/components/ui/button";
+import { QUIZ_DISABLED_SUBJECTS } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 
 const QUESTION_TYPES = [
@@ -108,7 +108,7 @@ export default function QuizPage() {
       </div>
 
       {/* Subject picker (reused from flashcards) */}
-      <SubjectPicker onStart={handleStart} title="Quick Quiz" />
+      <SubjectPicker onStart={handleStart} title="Quick Quiz" disabledSubjects={QUIZ_DISABLED_SUBJECTS} />
     </div>
   );
 }
