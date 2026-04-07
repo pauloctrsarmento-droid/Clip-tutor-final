@@ -85,7 +85,7 @@ function QuizSessionInner() {
   }, [subjectCode, topicId, count, questionType, router]);
 
   const handleSubmit = useCallback(
-    async (answer: string) => {
+    async (answer: string, photos?: File[]) => {
       if (!sessionId || evaluating) return;
       const q = questions[currentIndex];
       if (!q) return;
@@ -98,6 +98,7 @@ function QuizSessionInner() {
           session_id: sessionId,
           question_id: q.id,
           student_answer: answer,
+          photos,
         });
 
         setEvaluation(result);

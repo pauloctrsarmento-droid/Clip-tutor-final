@@ -3,13 +3,14 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Send, Loader2 } from "lucide-react";
+import { Send, Loader2, Camera } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { PhotoUpload } from "@/components/exam/photo-upload";
 
 interface QuizAnswerInputProps {
   responseType: string;
   options: Record<string, string> | null;
-  onSubmit: (answer: string) => void;
+  onSubmit: (answer: string, photos?: File[]) => void;
   submitting: boolean;
   disabled: boolean;
   accentClass: string;
@@ -25,6 +26,8 @@ export function QuizAnswerInput({
 }: QuizAnswerInputProps) {
   const [textAnswer, setTextAnswer] = useState("");
   const [selectedOption, setSelectedOption] = useState<string | null>(null);
+  const [photos, setPhotos] = useState<File[]>([]);
+  const [showUpload, setShowUpload] = useState(false);
 
   if (responseType === "mcq" && options) {
     return (
@@ -72,6 +75,7 @@ export function QuizAnswerInput({
 
   // Text or Numeric input
   const isNumeric = responseType === "numeric";
+  const hasContent = textAnswer.trim().length > 0 || photos.length > 0;
 
   return (
     <div className="space-y-3">
@@ -89,18 +93,42 @@ export function QuizAnswerInput({
           }}
         />
       ) : (
-        <textarea
-          value={textAnswer}
-          onChange={(e) => setTextAnswer(e.target.value)}
-          placeholder="Type your answer..."
-          disabled={disabled}
-          className="w-full bg-secondary border border-border rounded-xl px-4 py-3 text-sm leading-relaxed min-h-[120px] resize-y disabled:opacity-40"
-        />
+        <>
+          <textarea
+            value={textAnswer}
+            onChange={(e) => setTextAnswer(e.target.value)}
+            placeholder="Type your answer..."
+            disabled={disabled}
+            className="w-full bg-secondary border border-border rounded-xl px-4 py-3 text-sm leading-relaxed min-h-[120px] resize-y disabled:opacity-40"
+          />
+
+          {/* Photo upload toggle */}
+          {!showUpload && (
+            <button
+              type="button"
+              onClick={() => setShowUpload(true)}
+              disabled={disabled}
+              className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer disabled:opacity-40"
+            >
+              <Camera className="w-3.5 h-3.5" />
+              Upload a photo of your work
+            </button>
+          )}
+
+          {/* Photo upload area */}
+          {showUpload && (
+            <PhotoUpload
+              photos={photos}
+              onChange={setPhotos}
+              maxPhotos={3}
+            />
+          )}
+        </>
       )}
 
       <Button
-        onClick={() => onSubmit(textAnswer.trim())}
-        disabled={disabled || submitting || !textAnswer.trim()}
+        onClick={() => onSubmit(textAnswer.trim(), photos.length > 0 ? photos : undefined)}
+        disabled={disabled || submitting || !hasContent}
         className="cursor-pointer gap-2"
       >
         {submitting ? (

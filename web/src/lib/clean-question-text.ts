@@ -104,6 +104,9 @@ export function cleanParentContext(context: string | null): string | null {
     // Always remove standalone "Fig. X.Y" references (the diagram image shows this)
     if (/^Fig\.\s?\d+\.\d+$/i.test(t)) return false;
 
+    // Preserve pipe-table rows (lines with 2+ pipe separators)
+    if ((t.match(/\|/g) || []).length >= 2) return true;
+
     // Always remove pure axis tick values
     if (isAxisOrTickValue(t)) return false;
 

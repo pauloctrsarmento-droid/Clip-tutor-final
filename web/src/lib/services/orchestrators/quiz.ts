@@ -205,8 +205,9 @@ export async function evaluateAnswer(options: {
   questionId: string;
   studentAnswer: string;
   studentId?: string;
+  photoUrls?: string[];
 }): Promise<EvaluationResult> {
-  const { sessionId, questionId, studentAnswer, studentId = STUDENT_ID } = options;
+  const { sessionId, questionId, studentAnswer, studentId = STUDENT_ID, photoUrls } = options;
 
   // Fetch question + student profile in parallel
   const [questionRes, studentRes, promptTemplate] = await Promise.all([
@@ -266,10 +267,21 @@ export async function evaluateAnswer(options: {
     .replace(/\{\{language_name\}\}/g, languageName)
     .replace(/\{\{language\}\}/g, languageCode);
 
-  // Call LLM
+  // Call LLM — use vision if student uploaded photos
+  const userContent: string | import("@/lib/openai").VisionContentPart[] =
+    photoUrls && photoUrls.length > 0
+      ? [
+          { type: "text" as const, text: "Evaluate the student's answer now. Return the JSON evaluation. The student has uploaded photo(s) of their handwritten work — examine them carefully." },
+          ...photoUrls.map((url) => ({
+            type: "image_url" as const,
+            image_url: { url, detail: "high" as const },
+          })),
+        ]
+      : "Evaluate the student's answer now. Return the JSON evaluation.";
+
   const llmResponse = await callOpenAI({
     system,
-    user: "Evaluate the student's answer now. Return the JSON evaluation.",
+    user: userContent,
     jsonMode: true,
     maxTokens: 2048,
   });

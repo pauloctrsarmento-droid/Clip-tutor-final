@@ -167,12 +167,34 @@ export async function evaluateQuizAnswer(data: {
   session_id: string;
   question_id: string;
   student_answer: string;
+  photos?: File[];
 }) {
-  const res = await fetch(`${BASE}/api/quiz/evaluate`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(data),
-  });
+  let res: Response;
+
+  if (data.photos && data.photos.length > 0) {
+    const formData = new FormData();
+    formData.append("session_id", data.session_id);
+    formData.append("question_id", data.question_id);
+    formData.append("student_answer", data.student_answer || "");
+    for (const photo of data.photos) {
+      formData.append("photos", photo);
+    }
+    res = await fetch(`${BASE}/api/quiz/evaluate`, {
+      method: "POST",
+      body: formData,
+    });
+  } else {
+    res = await fetch(`${BASE}/api/quiz/evaluate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        session_id: data.session_id,
+        question_id: data.question_id,
+        student_answer: data.student_answer,
+      }),
+    });
+  }
+
   if (!res.ok) throw new Error("Failed to evaluate");
   return res.json();
 }
@@ -597,12 +619,12 @@ export async function startChatSession(mood: string) {
 export async function sendSessionMessage(
   sessionId: string,
   message: string,
-  images?: string[],
+  attachments?: Array<{ url: string; name: string }>,
 ): Promise<Response> {
   const res = await fetch(`${BASE}/api/session/message`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ session_id: sessionId, message, images }),
+    body: JSON.stringify({ session_id: sessionId, message, attachments }),
   });
   if (!res.ok) throw new Error("Failed to send message");
   return res;
