@@ -56,7 +56,7 @@ export async function GET(
       .select("id, fact_text, syllabus_topic_id")
       .in("syllabus_topic_id", topicIds)
       .eq("is_active", true)
-      .order("display_order");
+      .order("id");
 
     const factIds = (facts ?? []).map((f) => f.id as string);
 
