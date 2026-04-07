@@ -57,6 +57,12 @@ function isDiagramLabel(line: string): boolean {
   return false;
 }
 
+/** Lines starting with bullet/dash/number are list items — always keep */
+function isListItem(line: string): boolean {
+  const t = line.trim();
+  return /^[-•*]\s/.test(t) || /^\d+[.)]\s/.test(t) || /^[A-Z][.)]\s/.test(t);
+}
+
 /**
  * Returns true if a line is a "real sentence" — has a verb-like structure,
  * contains a period/question mark, or is long enough to be meaningful.
@@ -112,6 +118,9 @@ export function cleanParentContext(context: string | null): string | null {
 
     // Keep lines that look like real sentences
     if (isSentenceLine(t)) return true;
+
+    // Keep list items (bullets, dashes, numbered)
+    if (isListItem(t)) return true;
 
     // For remaining short lines: likely diagram labels — remove them
     // Real data never has standalone words like "car", "track", "atmosphere"
@@ -208,6 +217,7 @@ export function cleanQuestionText(text: string): string {
     // Preserve pipe-table rows (lines with 2+ pipe separators)
     if ((t.match(/\|/g) || []).length >= 2) return true;
     if (isAxisOrTickValue(t)) return false;
+    if (isListItem(t)) return true;
     if (t.length < 25 && !isSentenceLine(t) && !isDiagramLabel(t)) {
       // Additional check: keep if it looks like a sub-part label e.g. "(a)", "(b)(i)"
       if (/^\(/.test(t)) return true;
