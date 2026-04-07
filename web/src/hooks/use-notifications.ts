@@ -1,17 +1,10 @@
 "use client";
 
 import { useEffect, useRef, useCallback, useState } from "react";
+import { timeToDate } from "@/lib/block-time";
 import type { StudyPlanEntry } from "@/lib/types";
 
 type Permission = "default" | "granted" | "denied";
-
-/** Parse "HH:MM" or "HH:MM:SS" into today's Date */
-function timeToDate(timeStr: string): Date {
-  const [h, m] = timeStr.split(":").map(Number);
-  const d = new Date();
-  d.setHours(h ?? 0, m ?? 0, 0, 0);
-  return d;
-}
 
 function getServiceWorker(): Promise<ServiceWorkerRegistration | null> {
   if (!("serviceWorker" in navigator)) return Promise.resolve(null);

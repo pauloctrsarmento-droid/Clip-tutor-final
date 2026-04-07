@@ -156,14 +156,19 @@ export function ExamTimeline({ exams, subjectMastery }: ExamTimelineProps) {
                 "flex-shrink-0 w-[130px] snap-start rounded-xl border overflow-hidden transition-all",
                 isNext
                   ? "ring-2 ring-primary border-primary/30"
-                  : "border-border hover:border-muted-foreground/30"
+                  : "border-border hover:border-muted-foreground/30",
+                days <= 7 && "bg-red-500/5 border-red-500/30",
+                days > 7 && days <= 14 && "bg-amber-500/5 border-amber-500/30",
+                days > 14 && days <= 21 && "bg-yellow-500/5 border-yellow-500/20"
               )}
             >
-              {/* Subject color strip */}
+              {/* Subject color strip — solid red for urgent exams */}
               <div
                 className={cn(
-                  "h-1.5 w-full bg-gradient-to-r",
-                  meta.gradient.replace(/\/20/g, "")
+                  "h-1.5 w-full",
+                  days <= 7
+                    ? "bg-red-500"
+                    : `bg-gradient-to-r ${meta.gradient.replace(/\/20/g, "")}`
                 )}
               />
 
@@ -200,7 +205,7 @@ export function ExamTimeline({ exams, subjectMastery }: ExamTimelineProps) {
                   </span>
                 </p>
 
-                {/* Mastery dot */}
+                {/* Mastery dot + Behind badge */}
                 <div className="flex items-center gap-1.5">
                   <div
                     className={cn(
@@ -211,6 +216,11 @@ export function ExamTimeline({ exams, subjectMastery }: ExamTimelineProps) {
                   <span className="text-[10px] text-muted-foreground">
                     {mastery}%
                   </span>
+                  {mastery < 30 && days <= 21 && (
+                    <span className="text-[9px] font-semibold text-red-400 bg-red-500/10 px-1 py-0.5 rounded">
+                      Behind
+                    </span>
+                  )}
                 </div>
               </div>
             </div>

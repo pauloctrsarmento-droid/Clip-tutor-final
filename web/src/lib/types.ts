@@ -293,7 +293,7 @@ export interface StudySuggestion {
 
 export type StudyType = "study" | "practice" | "exam" | "final_prep" | "mixed";
 export type PlanPhase = "easter_w1" | "easter_w2" | "back_to_school" | "full_time";
-export type PlanStatus = "pending" | "done" | "skipped" | "rescheduled";
+export type PlanStatus = "pending" | "done" | "skipped" | "rescheduled" | "missed";
 
 export interface StudyPlanEntry {
   id: string;

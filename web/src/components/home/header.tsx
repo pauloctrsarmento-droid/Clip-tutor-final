@@ -5,13 +5,14 @@ import Link from "next/link";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { LiveClock } from "@/components/home/live-clock";
-import type { StudyPlanEntry, DashboardOverview, SubjectMastery } from "@/lib/types";
+import type { StudyPlanEntry, DashboardOverview, SubjectMastery, ExamCalendarEntry } from "@/lib/types";
 import { STUDY_SUBJECTS } from "@/lib/constants";
 
 interface HomeHeaderProps {
   overview: DashboardOverview;
   todayBlocks: StudyPlanEntry[];
   subjects: SubjectMastery[];
+  exams?: ExamCalendarEntry[];
 }
 
 function getGreeting(): string {
@@ -21,13 +22,24 @@ function getGreeting(): string {
   return "Good evening";
 }
 
-export function HomeHeader({ overview, todayBlocks, subjects }: HomeHeaderProps) {
+export function HomeHeader({ overview, todayBlocks, subjects, exams }: HomeHeaderProps) {
   const totalFacts = subjects
     .filter((s) => STUDY_SUBJECTS.includes(s.subject_code))
     .reduce((sum, s) => sum + s.total_facts, 0);
   const masteredFacts = subjects
     .filter((s) => STUDY_SUBJECTS.includes(s.subject_code))
     .reduce((sum, s) => sum + s.mastered_facts, 0);
+
+  // Urgency coloring for mastery counter
+  const masteryPercent = totalFacts > 0 ? (masteredFacts / totalFacts) * 100 : 0;
+  const studyExams = (exams ?? []).filter(
+    (e) => STUDY_SUBJECTS.includes(e.subject_code) && (e.days_remaining ?? 0) > 0
+  );
+  const nearestExamDays = studyExams.length > 0
+    ? Math.min(...studyExams.map((e) => e.days_remaining ?? Infinity))
+    : Infinity;
+  const isRed = masteryPercent < 5 && nearestExamDays <= 14;
+  const isAmber = !isRed && masteryPercent < 10 && nearestExamDays <= 21;
 
   const greeting = getGreeting();
   const blockCount = todayBlocks.length;
@@ -71,8 +83,11 @@ export function HomeHeader({ overview, todayBlocks, subjects }: HomeHeaderProps)
       {/* Right: clock + mastery counter + settings */}
       <div className="flex items-center gap-3">
         <LiveClock />
-        <div className="flex items-center gap-2 rounded-xl bg-card border border-border px-3 py-1.5">
-          <Target className="w-4 h-4 text-emerald-400" />
+        <div className={cn(
+          "flex items-center gap-2 rounded-xl bg-card border px-3 py-1.5",
+          isRed ? "border-red-500/30" : isAmber ? "border-amber-500/30" : "border-border"
+        )}>
+          <Target className={cn("w-4 h-4", isRed ? "text-red-400" : isAmber ? "text-amber-400" : "text-emerald-400")} />
           <span className="text-sm font-medium text-foreground">
             {masteredFacts}
             <span className="text-muted-foreground">/{totalFacts}</span>

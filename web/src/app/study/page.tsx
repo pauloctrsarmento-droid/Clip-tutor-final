@@ -6,9 +6,13 @@ import { motion } from "framer-motion";
 import { AlertCircle } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { fetchHomeData } from "@/lib/api";
+import { NON_STUDY_SUBJECTS, getBlockTimeStatus, useNow } from "@/lib/block-time";
 import { HomeHeader } from "@/components/home/header";
 import { HeroCta } from "@/components/home/hero-cta";
 import { MoodCheck } from "@/components/home/mood-check";
+import { MissedBlockModal } from "@/components/home/missed-block-modal";
+import type { MissedBlockAction } from "@/components/home/missed-block-modal";
+import { useMissedBlocks } from "@/hooks/use-missed-blocks";
 import { ExamTimeline } from "@/components/home/exam-timeline";
 import { StudyPlan } from "@/components/home/study-plan";
 import { MasteryGrid } from "@/components/home/mastery-grid";
@@ -77,11 +81,15 @@ function ErrorState({ message }: { message: string }) {
 }
 
 export default function StudyHomePage() {
+  // === ALL HOOKS AT THE TOP — before any conditional returns ===
   const router = useRouter();
   const [data, setData] = useState<HomeData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showMoodCheck, setShowMoodCheck] = useState(false);
+  const now = useNow();
+  const todayBlocks = data?.today.today ?? [];
+  const { currentMissed, snooze } = useMissedBlocks(todayBlocks, now);
 
   useEffect(() => {
     let cancelled = false;
@@ -103,6 +111,55 @@ export default function StudyHomePage() {
     };
   }, []);
 
+  const refetchData = useCallback(() => {
+    fetchHomeData()
+      .then((result) => setData(result))
+      .catch(() => { /* silent refetch failure */ });
+  }, []);
+
+  const startBlock = useCallback((block: StudyPlanEntry) => {
+    if (block.title.toLowerCase().includes("past paper")) {
+      const title = block.title.toLowerCase();
+      let url = `/study/exam?subject=${block.subject_code}`;
+      if (title.includes("writing")) url += "&component=writing";
+      else if (title.includes("reading")) url += "&component=reading";
+      else if (title.includes("listening")) url += "&component=listening";
+      router.push(url);
+    } else {
+      setShowMoodCheck(true);
+    }
+  }, [router]);
+
+  const handleMissedAction = useCallback(async (action: MissedBlockAction) => {
+    if (!currentMissed) return;
+    const id = currentMissed.id;
+
+    if (action.type === "snooze") {
+      snooze(id);
+      return;
+    }
+
+    if (action.type === "start_now") {
+      startBlock(currentMissed);
+      return;
+    }
+
+    try {
+      const body: Record<string, string> = { action: action.type === "done" ? "done" : "reschedule" };
+      if (action.type === "reschedule") body.reschedule_date = action.date;
+
+      await fetch(`/api/study-plan/${id}/student-update`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      refetchData();
+    } catch {
+      /* silent failure */
+    }
+  }, [currentMissed, snooze, refetchData, startBlock]);
+
+  // === CONDITIONAL RETURNS — after all hooks ===
   if (loading) {
     return <LoadingSkeleton />;
   }
@@ -118,19 +175,6 @@ export default function StudyHomePage() {
   const { overview, subjects, today, exams } = data;
   const hasBlocks = today.today.length > 0;
 
-  const startBlock = useCallback((block: StudyPlanEntry) => {
-    if (block.title.toLowerCase().includes("past paper")) {
-      const title = block.title.toLowerCase();
-      let url = `/study/exam?subject=${block.subject_code}`;
-      if (title.includes("writing")) url += "&component=writing";
-      else if (title.includes("reading")) url += "&component=reading";
-      else if (title.includes("listening")) url += "&component=listening";
-      router.push(url);
-    } else {
-      setShowMoodCheck(true);
-    }
-  }, [router]);
-
   return (
     <div className="space-y-5">
       {/* Header */}
@@ -138,6 +182,7 @@ export default function StudyHomePage() {
         overview={overview}
         todayBlocks={today.today}
         subjects={subjects}
+        exams={exams}
       />
 
       {/* CTA */}
@@ -146,10 +191,14 @@ export default function StudyHomePage() {
         overview={overview}
         exams={exams}
         onStartSession={() => {
-          const NON_STUDY = new Set(["PERSONAL", "ART"]);
-          const nextBlock = today.today.find(
-            (b) => b.status === "pending" && !NON_STUDY.has(b.subject_code)
+          const studyBlocks = today.today.filter(
+            (b) => b.status === "pending" && !NON_STUDY_SUBJECTS.has(b.subject_code)
           );
+          // Time-aware: in_progress > upcoming > no_time
+          const active = studyBlocks.find((b) => getBlockTimeStatus(b, now).kind === "in_progress");
+          const upcoming = studyBlocks.find((b) => getBlockTimeStatus(b, now).kind === "upcoming");
+          const noTime = studyBlocks.find((b) => getBlockTimeStatus(b, now).kind === "no_time");
+          const nextBlock = active ?? upcoming ?? noTime;
           if (nextBlock) {
             startBlock(nextBlock);
           } else {
@@ -215,6 +264,13 @@ export default function StudyHomePage() {
           </motion.div>
         </div>
       )}
+
+      {/* Missed Block Modal */}
+      <MissedBlockModal
+        block={currentMissed}
+        onAction={handleMissedAction}
+        onClose={() => currentMissed && snooze(currentMissed.id)}
+      />
 
       {/* Mood Check Modal */}
       <MoodCheck

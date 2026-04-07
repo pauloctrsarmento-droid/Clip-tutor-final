@@ -1,74 +1,17 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { CheckCircle, SkipForward, AlertTriangle, BookOpen, Clock, Bell, BellOff, Play } from "lucide-react";
+import { CheckCircle, SkipForward, AlertTriangle, BookOpen, Clock, Bell, BellOff, Play, Calendar } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { getSubjectMeta } from "@/lib/subject-meta";
 import { useNotifications } from "@/hooks/use-notifications";
+import { NON_STUDY_SUBJECTS, getBlockTimeStatus, useNow } from "@/lib/block-time";
 import type { StudyPlanEntry } from "@/lib/types";
-
-const NON_STUDY_SUBJECTS = new Set(["PERSONAL", "ART"]);
 
 interface StudyPlanDayProps {
   blocks: StudyPlanEntry[];
   overdueBlocks: StudyPlanEntry[];
   onStartBlock?: (block: StudyPlanEntry) => void;
-}
-
-/** Parse "HH:MM" or "HH:MM:SS" into today's Date */
-function timeToDate(timeStr: string): Date {
-  const [h, m] = timeStr.split(":").map(Number);
-  const d = new Date();
-  d.setHours(h ?? 0, m ?? 0, 0, 0);
-  return d;
-}
-
-type BlockTimeStatus =
-  | { kind: "upcoming"; label: string }
-  | { kind: "in_progress"; label: string; progress: number }
-  | { kind: "finished" }
-  | { kind: "no_time" };
-
-function getBlockTimeStatus(block: StudyPlanEntry, now: Date): BlockTimeStatus {
-  if (!block.start_time || !block.end_time) return { kind: "no_time" };
-
-  const start = timeToDate(block.start_time);
-  const end = timeToDate(block.end_time);
-  const nowMs = now.getTime();
-
-  if (nowMs < start.getTime()) {
-    const diffMs = start.getTime() - nowMs;
-    const diffMin = Math.ceil(diffMs / 60000);
-    if (diffMin < 60) {
-      return { kind: "upcoming", label: `in ${diffMin}m` };
-    }
-    const hours = Math.floor(diffMin / 60);
-    const mins = diffMin % 60;
-    return { kind: "upcoming", label: mins > 0 ? `in ${hours}h ${mins}m` : `in ${hours}h` };
-  }
-
-  if (nowMs >= start.getTime() && nowMs < end.getTime()) {
-    const total = end.getTime() - start.getTime();
-    const elapsed = nowMs - start.getTime();
-    const remaining = Math.ceil((end.getTime() - nowMs) / 60000);
-    const progress = Math.min(100, (elapsed / total) * 100);
-    const label = remaining < 60
-      ? `${remaining}m left`
-      : `${Math.floor(remaining / 60)}h ${remaining % 60}m left`;
-    return { kind: "in_progress", label, progress };
-  }
-
-  return { kind: "finished" };
-}
-
-function useNow(intervalMs = 15000): Date {
-  const [now, setNow] = useState(() => new Date());
-  useEffect(() => {
-    const id = setInterval(() => setNow(new Date()), intervalMs);
-    return () => clearInterval(id);
-  }, [intervalMs]);
-  return now;
 }
 
 function BlockCard({
@@ -82,10 +25,11 @@ function BlockCard({
   now: Date;
   onStart?: () => void;
 }) {
+  const isNonStudy = NON_STUDY_SUBJECTS.has(block.subject_code);
   const meta = getSubjectMeta(block.subject_code);
   const Icon = meta.icon;
   const timeStatus = getBlockTimeStatus(block, now);
-  const isActive = timeStatus.kind === "in_progress";
+  const isActive = !isNonStudy && timeStatus.kind === "in_progress";
 
   return (
     <div
@@ -94,12 +38,13 @@ function BlockCard({
       tabIndex={onStart ? 0 : undefined}
       className={cn(
         "relative flex items-center gap-3 rounded-xl bg-card border p-4 transition-all",
-        block.status === "done" && "opacity-60 border-border",
-        block.status === "skipped" && "opacity-40 border-border",
-        block.status === "pending" && !isActive && "border-border",
-        block.status === "rescheduled" && "border-border opacity-50",
+        isNonStudy && "opacity-60 bg-muted/30 border-border",
+        !isNonStudy && block.status === "done" && "opacity-60 border-border",
+        !isNonStudy && block.status === "skipped" && "opacity-40 border-border",
+        !isNonStudy && block.status === "pending" && !isActive && "border-border",
+        !isNonStudy && block.status === "rescheduled" && "border-border opacity-50",
         isActive && "border-emerald-500/50 bg-emerald-500/5",
-        isFirstPending && !isActive && "border-l-4 border-l-primary border-t-border border-r-border border-b-border",
+        !isNonStudy && isFirstPending && !isActive && "border-l-4 border-l-primary border-t-border border-r-border border-b-border",
         onStart && "cursor-pointer hover:border-primary/30 hover:bg-primary/5 active:scale-[0.99]"
       )}
     >
@@ -113,29 +58,38 @@ function BlockCard({
         </div>
       )}
 
-      {/* Subject icon */}
+      {/* Subject icon — non-study always shows Calendar icon */}
       <div
         className={cn(
           "w-10 h-10 rounded-lg flex items-center justify-center shrink-0 bg-gradient-to-br",
-          meta.gradient,
+          isNonStudy ? "from-gray-500/20 to-slate-500/20" : meta.gradient,
           isActive && "ring-2 ring-emerald-500/30"
         )}
       >
-        {isActive ? (
+        {isNonStudy ? (
+          <Calendar className="w-5 h-5 text-gray-400" />
+        ) : isActive ? (
           <Play className="w-4 h-4 text-emerald-400 fill-emerald-400" />
         ) : (
           <Icon className={cn("w-5 h-5", meta.accent)} />
         )}
       </div>
 
-      {/* Title + time */}
+      {/* Title + time + tag */}
       <div className="flex-1 min-w-0">
-        <p className={cn(
-          "text-sm font-medium truncate",
-          isActive ? "text-emerald-300" : "text-foreground"
-        )}>
-          {block.title}
-        </p>
+        <div className="flex items-center gap-2">
+          <p className={cn(
+            "text-sm font-medium truncate",
+            isNonStudy ? "text-muted-foreground" : isActive ? "text-emerald-300" : "text-foreground"
+          )}>
+            {block.title}
+          </p>
+          {isNonStudy && (
+            <Badge variant="outline" className="text-[9px] px-1.5 py-0 text-muted-foreground/60 border-muted-foreground/20 shrink-0">
+              {block.subject_code === "ART" ? "External" : "Personal"}
+            </Badge>
+          )}
+        </div>
         <div className="flex items-center gap-1.5 mt-1">
           <Clock className="w-3 h-3 text-muted-foreground" />
           {block.start_time && block.end_time ? (
@@ -165,6 +119,11 @@ function BlockCard({
         ) : block.status === "rescheduled" ? (
           <Badge variant="secondary" className="text-muted-foreground">
             Rescheduled
+          </Badge>
+        ) : block.status === "missed" ? (
+          <Badge variant="outline" className="text-red-400 border-red-500/30 bg-red-500/10">
+            <AlertTriangle className="w-3 h-3 mr-1" />
+            Missed
           </Badge>
         ) : timeStatus.kind === "in_progress" ? (
           <div className="flex flex-col items-end gap-0.5">
