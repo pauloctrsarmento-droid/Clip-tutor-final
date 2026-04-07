@@ -1,5 +1,6 @@
 import { supabaseAdmin } from "@/lib/supabase-server";
 import type { StudyPlanEntry, ExamCalendarEntry } from "@/lib/types";
+import type { CreatePlanEntryInput } from "@/lib/validators/study-plan";
 
 /**
  * Get study plan entries for a date range.
@@ -24,6 +25,37 @@ export async function getPlanEntries(options: {
   if (status) query = query.eq("status", status);
 
   const { data, error } = await query;
+  if (error) throw error;
+  return (data ?? []) as StudyPlanEntry[];
+}
+
+/**
+ * Create one or more study plan entries.
+ */
+export async function createPlanEntries(
+  entries: CreatePlanEntryInput[],
+  studentId: string
+): Promise<StudyPlanEntry[]> {
+  const rows = entries.map((e, i) => ({
+    student_id: studentId,
+    plan_date: e.plan_date,
+    subject_code: e.subject_code,
+    title: e.title,
+    planned_hours: e.planned_hours,
+    study_type: e.study_type,
+    start_time: e.start_time ?? null,
+    end_time: e.end_time ?? null,
+    notes: e.notes ?? null,
+    sort_order: e.sort_order ?? i + 1,
+    phase: "full_time" as const,
+    status: "pending" as const,
+  }));
+
+  const { data, error } = await supabaseAdmin
+    .from("study_plan_entries")
+    .insert(rows)
+    .select();
+
   if (error) throw error;
   return (data ?? []) as StudyPlanEntry[];
 }

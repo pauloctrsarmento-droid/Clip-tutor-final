@@ -44,4 +44,22 @@ export type StudyPlanQuery = z.infer<typeof studyPlanQuerySchema>;
 export type UpdatePlanEntry = z.infer<typeof updatePlanEntrySchema>;
 export type RescheduleInput = z.infer<typeof rescheduleSchema>;
 export type AiRescheduleInput = z.infer<typeof aiRescheduleSchema>;
+export const createPlanEntrySchema = z.object({
+  plan_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  subject_code: z.string().min(1),
+  title: z.string().min(1),
+  planned_hours: z.number().min(0),
+  study_type: z.enum(["study", "practice", "exam", "final_prep", "mixed"]).default("study"),
+  start_time: z.string().regex(/^\d{2}:\d{2}$/).optional(),
+  end_time: z.string().regex(/^\d{2}:\d{2}$/).optional(),
+  notes: z.string().optional(),
+  sort_order: z.number().int().optional(),
+});
+
+export const createPlanEntriesBatchSchema = z.object({
+  entries: z.array(createPlanEntrySchema).min(1),
+});
+
 export type ApplyRescheduleInput = z.infer<typeof applyRescheduleSchema>;
+export type CreatePlanEntryInput = z.infer<typeof createPlanEntrySchema>;
+export type CreatePlanEntriesBatchInput = z.infer<typeof createPlanEntriesBatchSchema>;

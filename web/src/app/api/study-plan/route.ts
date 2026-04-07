@@ -1,7 +1,8 @@
 import { errorResponse } from "@/lib/errors";
-import { studyPlanQuerySchema } from "@/lib/validators/study-plan";
-import { getPlanEntries, getWeekPlan } from "@/lib/services/study-plan";
+import { studyPlanQuerySchema, createPlanEntriesBatchSchema, createPlanEntrySchema } from "@/lib/validators/study-plan";
+import { getPlanEntries, getWeekPlan, createPlanEntries } from "@/lib/services/study-plan";
 import { getStudentId } from "@/lib/auth-helpers";
+import { verifyPin } from "@/lib/auth";
 
 export async function GET(request: Request) {
   try {
@@ -30,6 +31,24 @@ export async function GET(request: Request) {
       studentId,
     });
     return Response.json(entries);
+  } catch (error) {
+    return errorResponse(error);
+  }
+}
+
+export async function POST(request: Request) {
+  try {
+    verifyPin(request);
+    const studentId = await getStudentId();
+    const body = await request.json();
+
+    // Accept single entry or batch
+    const entries = Array.isArray(body.entries)
+      ? createPlanEntriesBatchSchema.parse(body).entries
+      : [createPlanEntrySchema.parse(body)];
+
+    const created = await createPlanEntries(entries, studentId);
+    return Response.json(created, { status: 201 });
   } catch (error) {
     return errorResponse(error);
   }

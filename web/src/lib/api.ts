@@ -371,6 +371,56 @@ export async function applyReschedule(
   return res.json();
 }
 
+export async function createPlanEntries(
+  pin: string,
+  data: { entries: Array<Record<string, unknown>> }
+) {
+  const res = await fetch(`${BASE}/api/study-plan`, {
+    method: "POST",
+    headers: headers(pin),
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error("Failed to create plan entries");
+  return res.json();
+}
+
+export async function createPlanEntry(
+  pin: string,
+  data: Record<string, unknown>
+) {
+  const res = await fetch(`${BASE}/api/study-plan`, {
+    method: "POST",
+    headers: headers(pin),
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error("Failed to create plan entry");
+  return res.json();
+}
+
+export async function parseScheduleImage(pin: string, file: File, contextDate?: string) {
+  const form = new FormData();
+  form.append("file", file);
+  if (contextDate) form.append("context_date", contextDate);
+
+  const res = await fetch(`${BASE}/api/study-plan/parse-schedule`, {
+    method: "POST",
+    headers: { "x-admin-pin": pin },
+    body: form,
+  });
+  if (!res.ok) throw new Error("Failed to parse schedule");
+  return res.json() as Promise<{ entries: Array<Record<string, unknown>>; notes?: string }>;
+}
+
+export async function parseScheduleText(pin: string, text: string, contextDate?: string) {
+  const res = await fetch(`${BASE}/api/study-plan/parse-schedule`, {
+    method: "POST",
+    headers: headers(pin),
+    body: JSON.stringify({ text, context_date: contextDate }),
+  });
+  if (!res.ok) throw new Error("Failed to parse schedule");
+  return res.json() as Promise<{ entries: Array<Record<string, unknown>>; notes?: string }>;
+}
+
 // ============================================================
 // Prompts
 // ============================================================

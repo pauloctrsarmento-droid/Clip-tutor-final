@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import {
   fetchExamCalendar,
   fetchStudyPlanWeek,
@@ -8,6 +8,9 @@ import {
   reschedulePlanEntry,
   aiReschedule,
   applyReschedule,
+  createPlanEntry,
+  createPlanEntries,
+  parseScheduleImage,
 } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { getSubjectMeta } from "@/lib/subject-meta";
@@ -31,9 +34,32 @@ import {
   Check,
   X,
   Loader2,
+  Plus,
+  Upload,
+  Camera,
+  Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+
+const SUBJECT_OPTIONS = [
+  { code: "0620", name: "Chemistry" },
+  { code: "0625", name: "Physics" },
+  { code: "0610", name: "Biology" },
+  { code: "0478", name: "CS" },
+  { code: "0520", name: "French" },
+  { code: "0504", name: "Portuguese" },
+  { code: "0475", name: "Eng. Lit" },
+  { code: "0500", name: "English" },
+  { code: "ART", name: "Art" },
+  { code: "PERSONAL", name: "Personal" },
+] as const;
+
+const SUBJECT_NAMES: Record<string, string> = Object.fromEntries(
+  SUBJECT_OPTIONS.map((s) => [s.code, s.name])
+);
+
+const STUDY_TYPES = ["study", "practice", "exam", "final_prep", "mixed"] as const;
 
 interface ExamEntry {
   subject_code: string;
@@ -90,6 +116,26 @@ export function StudyPlanView() {
   const [aiHours, setAiHours] = useState(6);
   const [aiLoading, setAiLoading] = useState(false);
   const [aiProposal, setAiProposal] = useState<{ entries: Array<Record<string, unknown>>; reasoning: string } | null>(null);
+
+  // Manual entry modal
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [addDate, setAddDate] = useState("");
+  const [addSubject, setAddSubject] = useState("0620");
+  const [addTitle, setAddTitle] = useState("");
+  const [addHours, setAddHours] = useState(1.5);
+  const [addType, setAddType] = useState<string>("study");
+  const [addStartTime, setAddStartTime] = useState("");
+  const [addEndTime, setAddEndTime] = useState("");
+  const [addSaving, setAddSaving] = useState(false);
+
+  // Upload/parse modal
+  const [showUploadModal, setShowUploadModal] = useState(false);
+  const [uploadFile, setUploadFile] = useState<File | null>(null);
+  const [uploadPreview, setUploadPreview] = useState<string | null>(null);
+  const [uploadParsing, setUploadParsing] = useState(false);
+  const [uploadEntries, setUploadEntries] = useState<Array<Record<string, unknown>> | null>(null);
+  const [uploadNotes, setUploadNotes] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const weekDates = getWeekDates(weekOffset);
   const weekLabel = `${weekDates[0]} — ${weekDates[6]}`;
@@ -174,6 +220,93 @@ export function StudyPlanView() {
     }
   };
 
+  // --- Manual entry handlers ---
+  const openAddModal = (date?: string) => {
+    setAddDate(date ?? weekDates[0]);
+    setAddSubject("0620");
+    setAddTitle("");
+    setAddHours(1.5);
+    setAddType("study");
+    setAddStartTime("");
+    setAddEndTime("");
+    setShowAddModal(true);
+  };
+
+  const handleAddEntry = async () => {
+    if (!pin || !addTitle.trim()) return;
+    setAddSaving(true);
+    try {
+      await createPlanEntry(pin, {
+        plan_date: addDate,
+        subject_code: addSubject,
+        title: addTitle.trim(),
+        planned_hours: addHours,
+        study_type: addType,
+        start_time: addStartTime || undefined,
+        end_time: addEndTime || undefined,
+      });
+      toast.success("Block added");
+      setShowAddModal(false);
+      load();
+    } catch {
+      toast.error("Failed to add block");
+    } finally {
+      setAddSaving(false);
+    }
+  };
+
+  // --- Upload/parse handlers ---
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadFile(file);
+    setUploadEntries(null);
+    setUploadNotes(null);
+
+    if (file.type.startsWith("image/")) {
+      const reader = new FileReader();
+      reader.onload = () => setUploadPreview(reader.result as string);
+      reader.readAsDataURL(file);
+    } else {
+      setUploadPreview(null);
+    }
+  };
+
+  const handleParseUpload = async () => {
+    if (!pin || !uploadFile) return;
+    setUploadParsing(true);
+    try {
+      const result = await parseScheduleImage(pin, uploadFile);
+      setUploadEntries(result.entries);
+      setUploadNotes(result.notes ?? null);
+    } catch {
+      toast.error("Failed to parse schedule");
+    } finally {
+      setUploadParsing(false);
+    }
+  };
+
+  const handleRemoveUploadEntry = (index: number) => {
+    if (!uploadEntries) return;
+    setUploadEntries(uploadEntries.filter((_, i) => i !== index));
+  };
+
+  const handleApplyUpload = async () => {
+    if (!pin || !uploadEntries?.length) return;
+    try {
+      await createPlanEntries(pin, { entries: uploadEntries });
+      toast.success(`${uploadEntries.length} blocks added`);
+      setShowUploadModal(false);
+      setUploadFile(null);
+      setUploadPreview(null);
+      setUploadEntries(null);
+      setUploadNotes(null);
+      load();
+    } catch {
+      toast.error("Failed to create entries");
+    }
+  };
+
   if (loading) {
     return (
       <div className="p-8 space-y-6">
@@ -207,14 +340,35 @@ export function StudyPlanView() {
         <h2 className="font-heading text-2xl font-bold tracking-tight">
           Study Plan
         </h2>
-        <Button
-          variant="ghost"
-          className="gap-2 cursor-pointer"
-          onClick={() => setShowAiModal(true)}
-        >
-          <Sparkles className="w-4 h-4 text-amber-400" />
-          <span className="text-sm">Reorganizar com AI</span>
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="gap-1.5 cursor-pointer"
+            onClick={() => setShowUploadModal(true)}
+          >
+            <Camera className="w-4 h-4 text-sky-400" />
+            <span className="text-sm">Upload Schedule</span>
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="gap-1.5 cursor-pointer"
+            onClick={() => openAddModal()}
+          >
+            <Plus className="w-4 h-4 text-emerald-400" />
+            <span className="text-sm">Add Block</span>
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="gap-1.5 cursor-pointer"
+            onClick={() => setShowAiModal(true)}
+          >
+            <Sparkles className="w-4 h-4 text-amber-400" />
+            <span className="text-sm">Reorganise AI</span>
+          </Button>
+        </div>
       </div>
 
       {/* Next exam countdown */}
@@ -499,6 +653,238 @@ export function StudyPlanView() {
                 </Button>
                 <Button onClick={handleAiApply} className="cursor-pointer">
                   <Check className="w-4 h-4 mr-1" /> Aprovar e aplicar
+                </Button>
+              </DialogFooter>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Add block modal */}
+      <Dialog open={showAddModal} onOpenChange={setShowAddModal}>
+        <DialogContent className="bg-card border-border">
+          <DialogHeader>
+            <DialogTitle className="font-heading flex items-center gap-2">
+              <Plus className="w-5 h-5 text-emerald-400" />
+              Add Study Block
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs text-muted-foreground mb-1 block">Date</label>
+                <Input type="date" value={addDate} onChange={(e) => setAddDate(e.target.value)} />
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground mb-1 block">Subject</label>
+                <select
+                  value={addSubject}
+                  onChange={(e) => setAddSubject(e.target.value)}
+                  className="w-full bg-secondary border border-border rounded-lg px-3 py-2 text-sm"
+                >
+                  {SUBJECT_OPTIONS.map((s) => (
+                    <option key={s.code} value={s.code}>{s.name}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground mb-1 block">Title</label>
+              <Input
+                value={addTitle}
+                onChange={(e) => setAddTitle(e.target.value)}
+                placeholder="e.g. Stoichiometry revision"
+              />
+            </div>
+            <div className="grid grid-cols-3 gap-3">
+              <div>
+                <label className="text-xs text-muted-foreground mb-1 block">Hours</label>
+                <Input
+                  type="number"
+                  step={0.5}
+                  min={0.5}
+                  max={8}
+                  value={addHours}
+                  onChange={(e) => setAddHours(Number(e.target.value))}
+                />
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground mb-1 block">Start</label>
+                <Input type="time" value={addStartTime} onChange={(e) => setAddStartTime(e.target.value)} />
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground mb-1 block">End</label>
+                <Input type="time" value={addEndTime} onChange={(e) => setAddEndTime(e.target.value)} />
+              </div>
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground mb-1 block">Type</label>
+              <select
+                value={addType}
+                onChange={(e) => setAddType(e.target.value)}
+                className="w-full bg-secondary border border-border rounded-lg px-3 py-2 text-sm"
+              >
+                {STUDY_TYPES.map((t) => (
+                  <option key={t} value={t}>{t.replace("_", " ")}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setShowAddModal(false)} className="cursor-pointer">
+              Cancel
+            </Button>
+            <Button onClick={handleAddEntry} disabled={addSaving || !addTitle.trim()} className="cursor-pointer">
+              {addSaving ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Check className="w-4 h-4 mr-1" />}
+              Add Block
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Upload schedule modal */}
+      <Dialog
+        open={showUploadModal}
+        onOpenChange={() => {
+          setShowUploadModal(false);
+          setUploadFile(null);
+          setUploadPreview(null);
+          setUploadEntries(null);
+          setUploadNotes(null);
+        }}
+      >
+        <DialogContent className="bg-card border-border max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="font-heading flex items-center gap-2">
+              <Camera className="w-5 h-5 text-sky-400" />
+              Upload Schedule
+            </DialogTitle>
+          </DialogHeader>
+
+          {!uploadEntries ? (
+            <div className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Upload a photo of a handwritten schedule, a screenshot, or a PDF. AI will extract the study blocks.
+              </p>
+
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*,.pdf"
+                onChange={handleFileSelect}
+                className="hidden"
+              />
+
+              {!uploadFile ? (
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  className="w-full border-2 border-dashed border-border rounded-xl p-8 flex flex-col items-center gap-3 hover:border-primary/40 transition-colors cursor-pointer"
+                >
+                  <Upload className="w-8 h-8 text-muted-foreground" />
+                  <span className="text-sm text-muted-foreground">
+                    Click to upload image or PDF
+                  </span>
+                </button>
+              ) : (
+                <div className="space-y-3">
+                  {uploadPreview && (
+                    <img
+                      src={uploadPreview}
+                      alt="Schedule preview"
+                      className="max-h-[300px] rounded-lg border border-border object-contain mx-auto"
+                    />
+                  )}
+                  <div className="flex items-center justify-between bg-secondary rounded-lg px-3 py-2">
+                    <span className="text-sm truncate">{uploadFile.name}</span>
+                    <button
+                      onClick={() => {
+                        setUploadFile(null);
+                        setUploadPreview(null);
+                        if (fileInputRef.current) fileInputRef.current.value = "";
+                      }}
+                      className="text-muted-foreground hover:text-foreground cursor-pointer"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              <DialogFooter>
+                <Button variant="ghost" onClick={() => setShowUploadModal(false)} className="cursor-pointer">
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleParseUpload}
+                  disabled={uploadParsing || !uploadFile}
+                  className="cursor-pointer"
+                >
+                  {uploadParsing ? (
+                    <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+                  ) : (
+                    <Sparkles className="w-4 h-4 mr-1" />
+                  )}
+                  Parse with AI
+                </Button>
+              </DialogFooter>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {uploadNotes && (
+                <p className="text-sm text-muted-foreground italic">{uploadNotes}</p>
+              )}
+
+              <div className="max-h-[400px] overflow-y-auto space-y-1.5">
+                {uploadEntries.map((e, i) => (
+                  <div
+                    key={i}
+                    className="flex items-center gap-2 text-sm bg-secondary rounded-lg px-3 py-2"
+                  >
+                    <span className="text-xs text-muted-foreground tabular-nums w-20 shrink-0">
+                      {e.plan_date as string}
+                    </span>
+                    {typeof e.start_time === "string" && (
+                      <span className="text-[10px] text-muted-foreground/70 tabular-nums w-12 shrink-0">
+                        {e.start_time}
+                      </span>
+                    )}
+                    <Badge variant="secondary" className="text-[10px] shrink-0">
+                      {SUBJECT_NAMES[e.subject_code as string] ?? e.subject_code}
+                    </Badge>
+                    <span className="flex-1 truncate">{e.title as string}</span>
+                    <span className="text-xs text-muted-foreground shrink-0">
+                      {e.planned_hours as number}h
+                    </span>
+                    <button
+                      onClick={() => handleRemoveUploadEntry(i)}
+                      className="text-muted-foreground hover:text-red-400 cursor-pointer shrink-0"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+
+              {uploadEntries.length === 0 && (
+                <p className="text-sm text-muted-foreground text-center py-4">
+                  All entries removed. Go back to try again.
+                </p>
+              )}
+
+              <DialogFooter>
+                <Button
+                  variant="ghost"
+                  onClick={() => { setUploadEntries(null); setUploadNotes(null); }}
+                  className="cursor-pointer"
+                >
+                  <X className="w-4 h-4 mr-1" /> Back
+                </Button>
+                <Button
+                  onClick={handleApplyUpload}
+                  disabled={!uploadEntries.length}
+                  className="cursor-pointer"
+                >
+                  <Check className="w-4 h-4 mr-1" /> Add {uploadEntries.length} blocks
                 </Button>
               </DialogFooter>
             </div>
