@@ -16,7 +16,6 @@ const PROTECTED_PREFIXES = [
   "/api/exam-calendar",
   "/api/weekly-summary",
   "/api/papers/exposure",
-  "/api/me",
 ];
 
 function isProtectedRoute(pathname: string): boolean {

@@ -55,10 +55,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     supabase.auth.getUser().then(({ data: { user: authUser } }) => {
       setUser(authUser);
       if (authUser) {
-        // Fetch student profile
-        fetch("/api/me")
-          .then((r) => r.ok ? r.json() : null)
-          .then((profile) => {
+        // Query student profile directly via browser client (avoids middleware cookie issues)
+        Promise.resolve(
+          supabase
+            .from("students")
+            .select("id, name")
+            .eq("auth_id", authUser.id)
+            .single()
+        )
+          .then(({ data: profile }) => {
             if (profile) {
               setStudentName(profile.name);
               setStudentId(profile.id);
