@@ -3,8 +3,20 @@ import { STUDENT_ID, SUBJECT_LANGUAGE, SUBJECT_LANG_CODE } from "@/lib/constants
 import { callOpenAI } from "@/lib/openai";
 import { getPrompt } from "@/lib/services/prompts";
 import { createSession, endSession } from "@/lib/services/sessions";
-import { updateTopicMastery, updateStreak } from "@/lib/services/mastery";
+import { updateTopicMastery, updateFactMastery, updateStreak } from "@/lib/services/mastery";
 import { getQuestionDiagramUrls } from "@/lib/diagrams";
+
+/** Extract fact IDs from related_facts (handles both string[] and {fact_id, score}[] formats) */
+function extractFactIds(relatedFacts: unknown): string[] {
+  if (!Array.isArray(relatedFacts) || relatedFacts.length === 0) return [];
+  return relatedFacts.map((entry) => {
+    if (typeof entry === "string") return entry;
+    if (typeof entry === "object" && entry !== null && "fact_id" in entry) {
+      return (entry as { fact_id: string }).fact_id;
+    }
+    return null;
+  }).filter((id): id is string => id !== null);
+}
 
 // ── Types ──────────────────────────────────────────────────────
 
@@ -340,6 +352,15 @@ export async function evaluateAnswer(options: {
       evaluation.marks_awarded,
       evaluation.marks_available ?? marks,
       studentId
+    );
+  }
+
+  // Update fact mastery for linked facts
+  const factIds = extractFactIds(question.related_facts);
+  if (factIds.length > 0) {
+    const correct = evaluation.marks_awarded > 0;
+    await Promise.all(
+      factIds.map((factId) => updateFactMastery(factId, correct, studentId).catch(() => {}))
     );
   }
 
