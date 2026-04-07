@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { GraduationCap } from "lucide-react";
 import Link from "next/link";
 import { SignOutButton } from "@/components/home/sign-out-button";
+import { AuthGuard } from "@/components/auth-guard";
 
 export const metadata: Metadata = {
   title: "CLIP Tutor — Study",
@@ -30,9 +31,9 @@ export default function StudyLayout({
         </div>
       </header>
 
-      {/* Content */}
+      {/* Content — protected by auth */}
       <main className="max-w-7xl mx-auto px-8 py-5">
-        {children}
+        <AuthGuard>{children}</AuthGuard>
       </main>
     </div>
   );

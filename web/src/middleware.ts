@@ -65,10 +65,8 @@ export async function middleware(request: NextRequest) {
         { status: 401 }
       );
     }
-    // Page routes: redirect to /auth
-    const url = request.nextUrl.clone();
-    url.pathname = "/auth";
-    return NextResponse.redirect(url);
+    // Page routes: let through — client-side auth context handles redirect
+    return response;
   }
 
   return response;
