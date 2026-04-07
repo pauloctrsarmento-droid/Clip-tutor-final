@@ -1,5 +1,5 @@
 import { supabaseAdmin } from "@/lib/supabase-server";
-import { STUDENT_ID, FLASHCARD_DEFAULT_LIMIT } from "@/lib/constants";
+import { FLASHCARD_DEFAULT_LIMIT } from "@/lib/constants";
 import { updateFactMastery, updateStreak } from "./mastery";
 import { updateSessionCounts } from "./sessions";
 import type { Flashcard, FactMastery } from "@/lib/types";
@@ -14,14 +14,13 @@ export async function getFlashcardDeck(options: {
   subjectCode?: string;
   topicId?: string;
   limit?: number;
-  studentId?: string;
+  studentId: string;
 }): Promise<Flashcard[]> {
   const {
     subjectCode,
     topicId,
     limit = FLASHCARD_DEFAULT_LIMIT,
-    studentId = STUDENT_ID,
-  } = options;
+    studentId, } = options;
 
   // Build query for active facts with optional filters
   let query = supabaseAdmin
@@ -113,9 +112,9 @@ export async function recordFlashcardAnswer(options: {
   sessionId: string;
   factId: string;
   correct: boolean;
-  studentId?: string;
+  studentId: string;
 }): Promise<FactMastery> {
-  const { sessionId, factId, correct, studentId = STUDENT_ID } = options;
+  const { sessionId, factId, correct, studentId } = options;
 
   // Insert attempt
   const { error: insertError } = await supabaseAdmin

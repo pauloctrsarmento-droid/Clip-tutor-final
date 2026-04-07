@@ -1,5 +1,5 @@
 import { supabaseAdmin } from "@/lib/supabase-server";
-import { STUDENT_ID, SUBJECT_LANGUAGE, SUBJECT_LANG_CODE } from "@/lib/constants";
+import { SUBJECT_LANGUAGE, SUBJECT_LANG_CODE } from "@/lib/constants";
 import { callOpenAI } from "@/lib/openai";
 import { getPrompt } from "@/lib/services/prompts";
 import { createSession, endSession } from "@/lib/services/sessions";
@@ -65,7 +65,7 @@ export async function startQuizSession(options: {
   count?: number;
   questionType?: string;
   difficulty?: string;
-  studentId?: string;
+  studentId: string;
 }): Promise<{ session_id: string; questions: QuizQuestion[] }> {
   const {
     subjectCode,
@@ -73,8 +73,7 @@ export async function startQuizSession(options: {
     count = 10,
     questionType = "all",
     difficulty,
-    studentId = STUDENT_ID,
-  } = options;
+    studentId, } = options;
 
   const session = await createSession(
     { session_type: "quiz", subject_code: subjectCode, syllabus_topic_id: topicId },
@@ -216,10 +215,10 @@ export async function evaluateAnswer(options: {
   sessionId: string;
   questionId: string;
   studentAnswer: string;
-  studentId?: string;
+  studentId: string;
   photoUrls?: string[];
 }): Promise<EvaluationResult> {
-  const { sessionId, questionId, studentAnswer, studentId = STUDENT_ID, photoUrls } = options;
+  const { sessionId, questionId, studentAnswer, studentId, photoUrls } = options;
 
   // Fetch question + student profile in parallel
   const [questionRes, studentRes, promptTemplate] = await Promise.all([

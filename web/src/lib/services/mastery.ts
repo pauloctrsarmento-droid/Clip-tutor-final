@@ -1,5 +1,6 @@
 import { supabaseAdmin } from "@/lib/supabase-server";
-import { STUDENT_ID } from "@/lib/constants";
+
+
 import type { FactMastery } from "@/lib/types";
 
 /**
@@ -9,7 +10,7 @@ import type { FactMastery } from "@/lib/types";
 export async function updateFactMastery(
   factId: string,
   correct: boolean,
-  studentId = STUDENT_ID
+  studentId: string
 ): Promise<FactMastery> {
   const { data, error } = await supabaseAdmin.rpc("update_fact_mastery", {
     p_student_id: studentId,
@@ -46,7 +47,7 @@ export async function updateTopicMastery(
   syllabusTopicId: string,
   marksAwarded: number,
   marksAvailable: number,
-  studentId = STUDENT_ID
+  studentId: string
 ): Promise<TopicMasteryResult> {
   const { data, error } = await supabaseAdmin.rpc("update_topic_mastery", {
     p_student_id: studentId,
@@ -63,7 +64,7 @@ export async function updateTopicMastery(
 /**
  * Update the student's streak based on today's activity.
  */
-export async function updateStreak(studentId = STUDENT_ID): Promise<void> {
+export async function updateStreak(studentId: string): Promise<void> {
   const today = new Date().toISOString().split("T")[0];
 
   const { data: student } = await supabaseAdmin

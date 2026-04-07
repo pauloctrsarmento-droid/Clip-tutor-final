@@ -1,5 +1,5 @@
 import { supabaseAdmin } from "@/lib/supabase-server";
-import { STUDENT_ID, QUIZ_DEFAULT_COUNT } from "@/lib/constants";
+import { QUIZ_DEFAULT_COUNT } from "@/lib/constants";
 import { updateTopicMastery, updateStreak } from "./mastery";
 import { updateSessionCounts } from "./sessions";
 import type { ExamQuestion } from "@/lib/types";
@@ -13,15 +13,14 @@ export async function getQuizQuestions(options: {
   topicId?: string;
   count?: number;
   responseType?: string;
-  studentId?: string;
+  studentId: string;
 }): Promise<ExamQuestion[]> {
   const {
     subjectCode,
     topicId,
     count = QUIZ_DEFAULT_COUNT,
     responseType,
-    studentId = STUDENT_ID,
-  } = options;
+    studentId, } = options;
 
   // Get recently attempted question IDs (last 7 days)
   const sevenDaysAgo = new Date();
@@ -95,9 +94,9 @@ export async function recordQuizAttempt(options: {
   questionId: string;
   marksAwarded: number;
   marksAvailable?: number;
-  studentId?: string;
+  studentId: string;
 }): Promise<void> {
-  const { sessionId, questionId, marksAwarded, studentId = STUDENT_ID } =
+  const { sessionId, questionId, marksAwarded, studentId } =
     options;
 
   // Get question to find marks and topic

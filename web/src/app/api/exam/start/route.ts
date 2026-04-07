@@ -1,6 +1,7 @@
 import { errorResponse } from "@/lib/errors";
 import { startExamSession } from "@/lib/services/orchestrators/exam-practice";
 import { z } from "zod";
+import { getStudentId } from "@/lib/auth-helpers";
 
 const schema = z.object({
   exam_paper_id: z.string().min(1),
@@ -8,11 +9,13 @@ const schema = z.object({
 
 export async function POST(request: Request) {
   try {
+    const studentId = await getStudentId();
     const body = await request.json();
     const input = schema.parse(body);
 
     const result = await startExamSession({
       examPaperId: input.exam_paper_id,
+      studentId,
     });
 
     return Response.json(result);

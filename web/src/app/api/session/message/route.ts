@@ -1,6 +1,7 @@
 import { errorResponse } from "@/lib/errors";
 import { sendMessage } from "@/lib/services/orchestrators/chat-tutor";
 import { z } from "zod";
+import { getStudentId } from "@/lib/auth-helpers";
 
 export const maxDuration = 60;
 
@@ -19,6 +20,7 @@ const schema = z.object({
 
 export async function POST(request: Request) {
   try {
+    const studentId = await getStudentId();
     const body = await request.json();
     const input = schema.parse(body);
 
@@ -32,6 +34,7 @@ export async function POST(request: Request) {
       sessionId: input.session_id,
       message: input.message,
       attachments,
+      studentId,
     });
 
     return new Response(stream, {

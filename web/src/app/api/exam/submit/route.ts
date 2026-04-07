@@ -1,6 +1,7 @@
 import { errorResponse, ValidationError } from "@/lib/errors";
 import { submitPhotos } from "@/lib/services/orchestrators/exam-practice";
 import { supabaseAdmin } from "@/lib/supabase-server";
+import { getStudentId } from "@/lib/auth-helpers";
 
 // Allow up to 60s for GPT-4o vision marking
 export const maxDuration = 60;
@@ -10,6 +11,7 @@ const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 
 export async function POST(request: Request) {
   try {
+    const studentId = await getStudentId();
     const formData = await request.formData();
     const sessionId = formData.get("session_id") as string;
 
@@ -70,6 +72,7 @@ export async function POST(request: Request) {
     const result = await submitPhotos({
       sessionId,
       photoUrls,
+      studentId,
     });
 
     return Response.json(result);

@@ -1,11 +1,13 @@
 import { errorResponse } from "@/lib/errors";
 import { getProgressTimeline } from "@/lib/services/dashboard";
+import { getStudentId } from "@/lib/auth-helpers";
 
 export async function GET(request: Request) {
   try {
+    const studentId = await getStudentId();
     const url = new URL(request.url);
     const days = Number(url.searchParams.get("days") ?? "30");
-    const progress = await getProgressTimeline(days);
+    const progress = await getProgressTimeline(days, studentId);
     return Response.json(progress);
   } catch (error) {
     return errorResponse(error);

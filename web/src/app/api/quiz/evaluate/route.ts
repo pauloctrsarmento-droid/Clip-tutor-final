@@ -2,6 +2,7 @@ import { errorResponse } from "@/lib/errors";
 import { evaluateAnswer } from "@/lib/services/orchestrators/quiz";
 import { supabaseAdmin } from "@/lib/supabase-server";
 import { z } from "zod";
+import { getStudentId } from "@/lib/auth-helpers";
 
 export const maxDuration = 60;
 
@@ -13,6 +14,7 @@ const jsonSchema = z.object({
 
 export async function POST(request: Request) {
   try {
+    const studentId = await getStudentId();
     const contentType = request.headers.get("content-type") ?? "";
 
     let sessionId: string;
@@ -68,6 +70,7 @@ export async function POST(request: Request) {
       questionId,
       studentAnswer,
       photoUrls: photoUrls.length > 0 ? photoUrls : undefined,
+      studentId,
     });
 
     return Response.json(result);

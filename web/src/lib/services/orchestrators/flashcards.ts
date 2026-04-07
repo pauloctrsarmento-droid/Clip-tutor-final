@@ -1,5 +1,5 @@
 import { supabaseAdmin } from "@/lib/supabase-server";
-import { STUDENT_ID, SUBJECT_LANGUAGE, SUBJECT_LANG_CODE } from "@/lib/constants";
+import { SUBJECT_LANGUAGE, SUBJECT_LANG_CODE } from "@/lib/constants";
 import { callOpenAI } from "@/lib/openai";
 import { getPrompt } from "@/lib/services/prompts";
 import { createSession, endSession, updateSessionCounts } from "@/lib/services/sessions";
@@ -13,7 +13,7 @@ interface StartOptions {
   subjectCode: string;
   topicId?: string;
   limit?: number;
-  studentId?: string;
+  studentId: string;
 }
 
 interface FlashcardWithQuestion extends Flashcard {
@@ -27,7 +27,7 @@ interface StartResult {
 }
 
 export async function startFlashcardSession(options: StartOptions): Promise<StartResult> {
-  const { subjectCode, topicId, limit, studentId = STUDENT_ID } = options;
+  const { subjectCode, topicId, limit, studentId } = options;
 
   const session = await createSession(
     { session_type: "flashcard", subject_code: subjectCode, syllabus_topic_id: topicId },
@@ -88,9 +88,9 @@ export async function startFlashcardSession(options: StartOptions): Promise<Star
 export async function getFlashcardExplanation(options: {
   factId: string;
   question?: string;
-  studentId?: string;
+  studentId: string;
 }): Promise<{ explanation: string }> {
-  const { factId, question, studentId = STUDENT_ID } = options;
+  const { factId, question, studentId } = options;
 
   // Fetch in parallel: prompt, student profile, fact
   const [promptTemplate, studentData, factData] = await Promise.all([
@@ -133,9 +133,9 @@ export async function recordFlashcardResult(options: {
   sessionId: string;
   factId: string;
   result: FlashcardResult;
-  studentId?: string;
+  studentId: string;
 }): Promise<{ updated_mastery: number; consecutive_correct: number }> {
-  const { sessionId, factId, result, studentId = STUDENT_ID } = options;
+  const { sessionId, factId, result, studentId } = options;
 
   const correct = result === "know";
 
@@ -162,7 +162,7 @@ export async function recordFlashcardResult(options: {
 
 export async function endFlashcardSession(options: {
   sessionId: string;
-  studentId?: string;
+  studentId: string;
 }): Promise<{
   total_cards: number;
   correct: number;

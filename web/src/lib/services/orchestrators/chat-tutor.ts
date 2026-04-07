@@ -11,7 +11,6 @@ import {
   generateBlockSummary,
 } from "@/lib/services/tutor-memory";
 import {
-  STUDENT_ID,
   SUBJECT_LANGUAGE,
   SUBJECT_LANG_CODE,
   QUIZ_DISABLED_SUBJECTS,
@@ -45,8 +44,7 @@ export interface SessionStartResult {
 
 export async function startSession(
   mood: Mood,
-  studentId = STUDENT_ID,
-): Promise<SessionStartResult> {
+  studentId: string): Promise<SessionStartResult> {
   // Fetch today's study plan + student profile + prompt in parallel
   const [planData, studentRes, promptTemplate] = await Promise.all([
     getTodayPlan(studentId),
@@ -116,7 +114,7 @@ export interface SendMessageOptions {
   images?: string[];
   /** Rich attachments (images, PDFs, Word docs). */
   attachments?: Attachment[];
-  studentId?: string;
+  studentId: string;
 }
 
 /**
@@ -134,7 +132,7 @@ export interface SendMessageOptions {
 export async function sendMessage(
   options: SendMessageOptions,
 ): Promise<ReadableStream<Uint8Array>> {
-  const { sessionId, message, images, attachments, studentId = STUDENT_ID } = options;
+  const { sessionId, message, images, attachments, studentId } = options;
 
   // Normalize: prefer attachments, fall back to legacy images
   const allAttachments: Attachment[] = attachments ?? images?.map((url, i) => ({
@@ -547,8 +545,7 @@ export interface ResumeResult {
 
 export async function resumeSession(
   sessionId: string,
-  studentId = STUDENT_ID,
-): Promise<ResumeResult> {
+  studentId: string): Promise<ResumeResult> {
   const { data: session } = await supabaseAdmin
     .from("study_sessions")
     .select("*")
@@ -603,8 +600,7 @@ export interface EndSessionResult {
 export async function endSession(
   sessionId: string,
   reason: "completed" | "interrupted",
-  studentId = STUDENT_ID,
-): Promise<EndSessionResult> {
+  studentId: string): Promise<EndSessionResult> {
   const { data: session } = await supabaseAdmin
     .from("study_sessions")
     .select("*")

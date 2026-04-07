@@ -2,7 +2,7 @@ import { z } from "zod";
 import { errorResponse } from "@/lib/errors";
 import { updatePlanEntry, rescheduleEntry } from "@/lib/services/study-plan";
 import { supabaseAdmin } from "@/lib/supabase-server";
-import { STUDENT_ID } from "@/lib/constants";
+import { getStudentId } from "@/lib/auth-helpers";
 
 const studentUpdateSchema = z.object({
   action: z.enum(["done", "missed", "skipped", "reschedule"]),
@@ -15,6 +15,7 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const studentId = await getStudentId();
     const { id } = await params;
     const body = await request.json();
     const input = studentUpdateSchema.parse(body);
@@ -29,7 +30,7 @@ export async function POST(
     if (fetchErr || !entry) {
       return Response.json({ error: "Entry not found", code: "NOT_FOUND" }, { status: 404 });
     }
-    if (entry.student_id !== STUDENT_ID) {
+    if (entry.student_id !== studentId) {
       return Response.json({ error: "Forbidden", code: "FORBIDDEN" }, { status: 403 });
     }
 

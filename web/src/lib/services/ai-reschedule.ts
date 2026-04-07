@@ -1,5 +1,4 @@
 import { supabaseAdmin } from "@/lib/supabase-server";
-import { STUDENT_ID } from "@/lib/constants";
 import { callOpenAI } from "@/lib/openai";
 import { getPrompt } from "@/lib/services/prompts";
 import type { RescheduleProposal } from "@/lib/types";
@@ -17,8 +16,7 @@ export async function generateRescheduleProposal(options: {
   const {
     reason,
     availableHoursPerDay = 6,
-    studentId = STUDENT_ID,
-  } = options;
+    studentId, } = options;
 
   // 1. Fetch pending/skipped plan entries
   const { data: pendingEntries } = await supabaseAdmin

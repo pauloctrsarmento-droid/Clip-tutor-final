@@ -1,6 +1,7 @@
 import { errorResponse } from "@/lib/errors";
 import { startQuizSession } from "@/lib/services/orchestrators/quiz";
 import { z } from "zod";
+import { getStudentId } from "@/lib/auth-helpers";
 
 const schema = z.object({
   subject_code: z.string().min(1),
@@ -12,6 +13,7 @@ const schema = z.object({
 
 export async function POST(request: Request) {
   try {
+    const studentId = await getStudentId();
     const body = await request.json();
     const input = schema.parse(body);
 
@@ -21,6 +23,7 @@ export async function POST(request: Request) {
       count: input.count,
       questionType: input.question_type,
       difficulty: input.difficulty,
+      studentId,
     });
 
     return Response.json(result);

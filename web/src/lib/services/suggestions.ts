@@ -1,6 +1,5 @@
 import { supabaseAdmin } from "@/lib/supabase-server";
 import {
-  STUDENT_ID,
   STALE_DAYS,
   WEAK_TOPIC_THRESHOLD,
   MAX_SUGGESTIONS,
@@ -25,7 +24,7 @@ interface TopicCandidate {
  * Clears old pending suggestions and creates new ones.
  */
 export async function generateSuggestions(
-  studentId = STUDENT_ID
+  studentId: string
 ): Promise<StudySuggestion[]> {
   // Clear old non-acted suggestions
   await supabaseAdmin
@@ -191,7 +190,7 @@ export async function generateSuggestions(
  * Get active (non-dismissed) suggestions.
  */
 export async function getSuggestions(
-  studentId = STUDENT_ID
+  studentId: string
 ): Promise<StudySuggestion[]> {
   const { data, error } = await supabaseAdmin
     .from("study_suggestions")

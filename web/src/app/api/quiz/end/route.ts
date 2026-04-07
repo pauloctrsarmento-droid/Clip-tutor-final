@@ -1,6 +1,7 @@
 import { errorResponse } from "@/lib/errors";
 import { endQuizSession } from "@/lib/services/orchestrators/quiz";
 import { z } from "zod";
+import { getStudentId } from "@/lib/auth-helpers";
 
 const schema = z.object({
   session_id: z.string().uuid(),

@@ -1,5 +1,5 @@
 import { supabaseAdmin } from "@/lib/supabase-server";
-import { STUDENT_ID, SUBJECT_LANGUAGE } from "@/lib/constants";
+import { SUBJECT_LANGUAGE } from "@/lib/constants";
 import { callOpenAI, type VisionContentPart } from "@/lib/openai";
 import { getPrompt } from "@/lib/services/prompts";
 import { updateTopicMastery, updateStreak } from "@/lib/services/mastery";
@@ -197,14 +197,14 @@ function calculateGrade(
 // ── Main Functions ─────────────────────────────────────────────
 
 export async function startExamSession(options: {
-  studentId?: string;
+  studentId: string;
   examPaperId: string;
 }): Promise<{
   session_id: string;
   paper_info: ExamPaperInfo;
   time_limit_minutes: number | null;
 }> {
-  const { studentId = STUDENT_ID, examPaperId } = options;
+  const { studentId, examPaperId } = options;
 
   const paperInfo = await fetchPaperInfo(examPaperId);
 
@@ -257,9 +257,9 @@ export async function startExamSession(options: {
 export async function submitPhotos(options: {
   sessionId: string;
   photoUrls: string[];
-  studentId?: string;
+  studentId: string;
 }): Promise<ExamResults> {
-  const { sessionId, photoUrls, studentId = STUDENT_ID } = options;
+  const { sessionId, photoUrls, studentId } = options;
 
   // Validate session
   const { data: session, error: sessionErr } = await supabaseAdmin
@@ -492,9 +492,9 @@ ${fullTranscription}`,
 export async function clarifyAnswers(options: {
   sessionId: string;
   clarifications: Array<{ question_number: string; typed_text: string }>;
-  studentId?: string;
+  studentId: string;
 }): Promise<ExamResults> {
-  const { sessionId, clarifications, studentId = STUDENT_ID } = options;
+  const { sessionId, clarifications, studentId } = options;
 
   const { data: session, error } = await supabaseAdmin
     .from("exam_sessions")
@@ -629,7 +629,7 @@ export async function getExamResults(sessionId: string): Promise<ExamResults | n
 }
 
 export async function getExamHistory(options: {
-  studentId?: string;
+  studentId: string;
   subjectCode?: string;
 }): Promise<Array<{
   session_id: string;
@@ -641,7 +641,7 @@ export async function getExamHistory(options: {
   started_at: string;
   completed_at: string | null;
 }>> {
-  const { studentId = STUDENT_ID, subjectCode } = options;
+  const { studentId, subjectCode } = options;
 
   let query = supabaseAdmin
     .from("exam_sessions")

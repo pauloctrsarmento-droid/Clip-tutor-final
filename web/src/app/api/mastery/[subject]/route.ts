@@ -1,13 +1,15 @@
 import { errorResponse } from "@/lib/errors";
 import { supabaseAdmin } from "@/lib/supabase-server";
-import { STUDENT_ID, MASTERY } from "@/lib/constants";
+import { MASTERY } from "@/lib/constants";
 import type { NextRequest } from "next/server";
+import { getStudentId } from "@/lib/auth-helpers";
 
 export async function GET(
   _request: NextRequest,
   { params }: { params: Promise<{ subject: string }> }
 ) {
   try {
+    const studentId = await getStudentId();
     const { subject: subjectCode } = await params;
 
     // Get subject info
@@ -39,7 +41,7 @@ export async function GET(
     const { data: topicMastery } = await supabaseAdmin
       .from("student_topic_mastery")
       .select("syllabus_topic_id, mastery_score, questions_attempted")
-      .eq("student_id", STUDENT_ID);
+      .eq("student_id", studentId);
 
     const masteryMap = new Map(
       (topicMastery ?? []).map((m) => [
@@ -71,7 +73,7 @@ export async function GET(
         const { data: batch } = await supabaseAdmin
           .from("student_fact_mastery")
           .select("fact_id, mastery_score")
-          .eq("student_id", STUDENT_ID)
+          .eq("student_id", studentId)
           .in("fact_id", factIds.slice(offset, offset + pageSize));
 
         if (!batch || batch.length === 0) break;

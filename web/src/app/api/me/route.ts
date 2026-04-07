@@ -1,5 +1,6 @@
 import { errorResponse } from "@/lib/errors";
 import { getStudentProfile } from "@/lib/auth-helpers";
+import { getStudentId } from "@/lib/auth-helpers";
 
 export async function GET() {
   try {

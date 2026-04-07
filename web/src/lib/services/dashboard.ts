@@ -1,5 +1,5 @@
 import { supabaseAdmin } from "@/lib/supabase-server";
-import { STUDENT_ID, MASTERY } from "@/lib/constants";
+import { MASTERY } from "@/lib/constants";
 import type {
   DashboardOverview,
   SubjectMastery,
@@ -12,7 +12,7 @@ import type {
  * Overview stats: streak, mastery%, total attempts, accuracy.
  */
 export async function getOverview(
-  studentId = STUDENT_ID
+  studentId: string
 ): Promise<DashboardOverview> {
   const [studentRes, masteryRes, flashcardRes, quizRes] = await Promise.all([
     supabaseAdmin
@@ -74,7 +74,7 @@ export async function getOverview(
  * Per-subject mastery breakdown.
  */
 export async function getSubjectMastery(
-  studentId = STUDENT_ID
+  studentId: string
 ): Promise<SubjectMastery[]> {
   // Get all subjects
   const { data: subjects } = await supabaseAdmin
@@ -157,7 +157,7 @@ export async function getSubjectMastery(
  */
 export async function getMisconceptions(
   limit = 20,
-  studentId = STUDENT_ID
+  studentId: string
 ): Promise<Misconception[]> {
   const { data, error } = await supabaseAdmin
     .from("student_fact_mastery")
@@ -201,7 +201,7 @@ export async function getMisconceptions(
  */
 export async function getProgressTimeline(
   days = 30,
-  studentId = STUDENT_ID
+  studentId: string
 ): Promise<DayProgress[]> {
   const since = new Date();
   since.setDate(since.getDate() - days);
@@ -245,7 +245,7 @@ export async function getProgressTimeline(
  * Per-topic exam progress.
  */
 export async function getExamProgress(
-  studentId = STUDENT_ID
+  studentId: string
 ): Promise<TopicProgress[]> {
   const { data, error } = await supabaseAdmin
     .from("student_topic_mastery")

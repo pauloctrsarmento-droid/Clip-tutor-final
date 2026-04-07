@@ -1,11 +1,10 @@
 import { supabaseAdmin } from "@/lib/supabase-server";
-import { STUDENT_ID } from "@/lib/constants";
 import type { CreateSessionInput } from "@/lib/validators/session";
 import type { StudySession } from "@/lib/types";
 
 export async function createSession(
   input: CreateSessionInput,
-  studentId = STUDENT_ID
+  studentId: string
 ): Promise<StudySession> {
   const { data, error } = await supabaseAdmin
     .from("study_sessions")

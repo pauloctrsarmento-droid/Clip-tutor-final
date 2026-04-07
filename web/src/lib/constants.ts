@@ -12,9 +12,6 @@ export const MASTERY = {
   DECAY_AMOUNT: 0.1,
 } as const;
 
-/** Single-user student ID (Luísa) */
-export const STUDENT_ID = "00000000-0000-0000-0000-000000000001";
-
 /** Default flashcard deck size */
 export const FLASHCARD_DEFAULT_LIMIT = 20;
 

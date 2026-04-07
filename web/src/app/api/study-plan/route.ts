@@ -1,9 +1,11 @@
 import { errorResponse } from "@/lib/errors";
 import { studyPlanQuerySchema } from "@/lib/validators/study-plan";
 import { getPlanEntries, getWeekPlan } from "@/lib/services/study-plan";
+import { getStudentId } from "@/lib/auth-helpers";
 
 export async function GET(request: Request) {
   try {
+    const studentId = await getStudentId();
     const url = new URL(request.url);
     const query = studyPlanQuerySchema.parse({
       week: url.searchParams.get("week") ?? undefined,
@@ -13,11 +15,11 @@ export async function GET(request: Request) {
     });
 
     if (query.week === "current") {
-      const entries = await getWeekPlan(0);
+      const entries = await getWeekPlan(0, studentId);
       return Response.json(entries);
     }
     if (query.week === "next") {
-      const entries = await getWeekPlan(1);
+      const entries = await getWeekPlan(1, studentId);
       return Response.json(entries);
     }
 
@@ -25,6 +27,7 @@ export async function GET(request: Request) {
       from: query.from,
       to: query.to,
       status: query.status,
+      studentId,
     });
     return Response.json(entries);
   } catch (error) {

@@ -1,6 +1,6 @@
 import { supabaseAdmin } from "@/lib/supabase-server";
-import { STUDENT_ID } from "@/lib/constants";
 import { errorResponse } from "@/lib/errors";
+import { getStudentId } from "@/lib/auth-helpers";
 
 /**
  * GET /api/papers/exposure?subject_code=0620
@@ -10,9 +10,9 @@ import { errorResponse } from "@/lib/errors";
  */
 export async function GET(request: Request) {
   try {
+    const studentId = await getStudentId();
     const { searchParams } = new URL(request.url);
     const subjectCode = searchParams.get("subject_code");
-    const studentId = STUDENT_ID;
 
     // Get all question IDs the student has seen in quiz mode
     const { data: exposures } = await supabaseAdmin

@@ -1,6 +1,7 @@
 import { errorResponse } from "@/lib/errors";
 import { recordFlashcardResult } from "@/lib/services/orchestrators/flashcards";
 import { z } from "zod";
+import { getStudentId } from "@/lib/auth-helpers";
 
 const schema = z.object({
   session_id: z.string().uuid(),
@@ -10,6 +11,7 @@ const schema = z.object({
 
 export async function POST(request: Request) {
   try {
+    const studentId = await getStudentId();
     const body = await request.json();
     const input = schema.parse(body);
 
@@ -17,6 +19,7 @@ export async function POST(request: Request) {
       sessionId: input.session_id,
       factId: input.fact_id,
       result: input.result,
+      studentId,
     });
 
     return Response.json(result);

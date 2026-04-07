@@ -1,6 +1,7 @@
 import { errorResponse } from "@/lib/errors";
 import { clarifyAnswers } from "@/lib/services/orchestrators/exam-practice";
 import { z } from "zod";
+import { getStudentId } from "@/lib/auth-helpers";
 
 export const maxDuration = 60;
 
@@ -16,12 +17,14 @@ const schema = z.object({
 
 export async function POST(request: Request) {
   try {
+    const studentId = await getStudentId();
     const body = await request.json();
     const input = schema.parse(body);
 
     const result = await clarifyAnswers({
       sessionId: input.session_id,
       clarifications: input.clarifications,
+      studentId,
     });
 
     return Response.json(result);

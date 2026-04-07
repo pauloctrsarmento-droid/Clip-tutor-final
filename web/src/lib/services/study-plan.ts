@@ -1,5 +1,4 @@
 import { supabaseAdmin } from "@/lib/supabase-server";
-import { STUDENT_ID } from "@/lib/constants";
 import type { StudyPlanEntry, ExamCalendarEntry } from "@/lib/types";
 
 /**
@@ -9,9 +8,9 @@ export async function getPlanEntries(options: {
   from?: string;
   to?: string;
   status?: string;
-  studentId?: string;
+  studentId: string;
 }): Promise<StudyPlanEntry[]> {
-  const { from, to, status, studentId = STUDENT_ID } = options;
+  const { from, to, status, studentId } = options;
 
   let query = supabaseAdmin
     .from("study_plan_entries")
@@ -44,7 +43,7 @@ function getNowInLisbon(): Date {
 }
 
 export async function getTodayPlan(
-  studentId = STUDENT_ID
+  studentId: string
 ): Promise<{ today: StudyPlanEntry[]; overdue: StudyPlanEntry[] }> {
   const today = getTodayDate();
 
@@ -79,7 +78,7 @@ export async function getTodayPlan(
  */
 export async function getWeekPlan(
   weekOffset = 0,
-  studentId = STUDENT_ID
+  studentId: string
 ): Promise<StudyPlanEntry[]> {
   const now = getNowInLisbon();
   const dayOfWeek = now.getDay(); // 0=Sun
@@ -173,7 +172,7 @@ export async function rescheduleEntry(
  * Get exam calendar with days remaining.
  */
 export async function getExamCalendar(
-  studentId = STUDENT_ID
+  studentId: string
 ): Promise<ExamCalendarEntry[]> {
   const { data, error } = await supabaseAdmin
     .from("exam_calendar")
@@ -212,7 +211,7 @@ export async function applyReschedule(
     syllabus_topic_ids?: string[];
     sort_order?: number;
   }>,
-  studentId = STUDENT_ID
+  studentId: string
 ): Promise<number> {
   // Get dates covered by new entries
   const newDates = new Set(entries.map((e) => e.plan_date));

@@ -3,16 +3,18 @@ import { callOpenAI } from "@/lib/openai";
 import { getOverview, getSubjectMastery } from "@/lib/services/dashboard";
 import { getWeekPlan, getExamCalendar } from "@/lib/services/study-plan";
 import { STUDY_SUBJECTS } from "@/lib/constants";
+import { getStudentId } from "@/lib/auth-helpers";
 
 export const maxDuration = 60;
 
 export async function GET() {
   try {
+    const studentId = await getStudentId();
     const [overview, subjects, weekPlan, exams] = await Promise.all([
-      getOverview(),
-      getSubjectMastery(),
-      getWeekPlan(0),
-      getExamCalendar(),
+      getOverview(studentId),
+      getSubjectMastery(studentId),
+      getWeekPlan(0, studentId),
+      getExamCalendar(studentId),
     ]);
 
     const activeSubjects = subjects.filter((s) =>
