@@ -173,8 +173,10 @@ export function StudyPlanView() {
     }
     setTopicsLoading(true);
     fetchSubjectTopicsList(addSubject)
-      .then((topics) => {
-        const sorted = (topics as Array<{ id: string; topic_code: string; topic_name: string }>)
+      .then((result) => {
+        // API returns { subject, topics } — extract the topics array
+        const raw = Array.isArray(result) ? result : (result as { topics: unknown[] }).topics ?? [];
+        const sorted = (raw as Array<{ id: string; topic_code: string; topic_name: string }>)
           .sort((a, b) => a.topic_code.localeCompare(b.topic_code, undefined, { numeric: true }));
         setAvailableTopics(sorted);
       })
