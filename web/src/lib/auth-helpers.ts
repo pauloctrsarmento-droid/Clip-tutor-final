@@ -1,7 +1,30 @@
-import { createSupabaseServer } from "@/lib/supabase-auth";
+import { createServerClient } from "@supabase/ssr";
+import { cookies } from "next/headers";
 import { supabaseAdmin } from "@/lib/supabase-server";
 import { AuthenticationError } from "@/lib/errors";
 import type { User } from "@supabase/supabase-js";
+
+/** Server-side Supabase client with cookie-based auth */
+async function createSupabaseServer() {
+  const cookieStore = await cookies();
+
+  return createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() {
+          return cookieStore.getAll();
+        },
+        setAll(cookiesToSet) {
+          for (const { name, value, options } of cookiesToSet) {
+            cookieStore.set(name, value, options);
+          }
+        },
+      },
+    }
+  );
+}
 
 /** Get the authenticated Supabase Auth user from cookies. Returns null if not logged in. */
 export async function getAuthUser(): Promise<User | null> {
