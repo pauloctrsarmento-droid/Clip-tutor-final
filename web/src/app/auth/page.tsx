@@ -1,44 +1,24 @@
-"use client";
-
-import dynamic from "next/dynamic";
-import HeroSection from "./_components/hero-section";
-import FeaturesSection from "./_components/features-section";
-import StatsBar from "./_components/stats-bar";
-import ExamCountdown from "./_components/exam-countdown";
-import SchoolSection from "./_components/school-section";
-import AuthCard from "./_components/auth-card";
-import GradientOrbs from "./_components/gradient-orbs";
-
-/* Lazy-load heavy background components to avoid blocking first paint */
-const MeshBackground = dynamic(() => import("./_components/mesh-background"), {
-  ssr: false,
-});
-const ParticleField = dynamic(() => import("./_components/particle-field"), {
-  ssr: false,
-});
+import NavBar from "./_components/nav-bar";
+import Hero from "./_components/hero";
+import Intro from "./_components/intro";
+import Features from "./_components/features";
+import School from "./_components/school";
+import AuthForm from "./_components/auth-form";
+import GrainOverlay from "./_components/grain-overlay";
 
 export default function AuthPage() {
   return (
-    <div className="relative min-h-screen bg-background overflow-x-hidden">
-      {/* ── Fixed background layers ── */}
-      <MeshBackground />
-      <ParticleField />
-      <GradientOrbs />
-
-      {/* ── Scrollable content ── */}
-      <main className="relative z-10">
-        <HeroSection />
-        <FeaturesSection />
-        <StatsBar />
-        <ExamCountdown />
-        <SchoolSection />
-        <AuthCard />
-
-        {/* Footer */}
-        <footer className="py-8 text-center">
-          <p className="text-xs text-muted-foreground/50">
-            Built with care for CLIP Porto
-          </p>
+    <div className="relative">
+      <GrainOverlay />
+      <NavBar />
+      <main>
+        <Hero />
+        <Intro />
+        <Features />
+        <School />
+        <AuthForm />
+        <footer className="py-12 text-center text-xs text-stone-500 tracking-wider">
+          For CLIP Porto · Cambridge IGCSE June 2026
         </footer>
       </main>
     </div>
