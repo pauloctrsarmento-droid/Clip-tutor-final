@@ -166,10 +166,15 @@ export async function POST(request: Request) {
       const bytes = await file.arrayBuffer();
       const base64 = Buffer.from(bytes).toString("base64");
       const mimeType = file.type || "image/png";
+      const isPdf = mimeType === "application/pdf" || file.name.endsWith(".pdf");
+
+      const filePart: VisionContentPart = isPdf
+        ? { type: "file", file: { filename: file.name, file_data: `data:${mimeType};base64,${base64}` } }
+        : { type: "image_url", image_url: { url: `data:${mimeType};base64,${base64}`, detail: "high" } };
 
       userContent = [
-        { type: "text", text: `Context date (today): ${contextDate}. Extract all study blocks from this schedule image.` },
-        { type: "image_url", image_url: { url: `data:${mimeType};base64,${base64}`, detail: "high" } },
+        { type: "text", text: `Context date (today): ${contextDate}. Extract all study blocks from this schedule.` },
+        filePart,
       ];
     } else {
       const body = await request.json();
