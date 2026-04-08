@@ -205,12 +205,12 @@ export async function rescheduleEntry(
  * Get exam calendar with days remaining.
  */
 export async function getExamCalendar(
-  studentId: string
+  _studentId: string
 ): Promise<ExamCalendarEntry[]> {
+  // Shared calendar — Cambridge IGCSE June 2026 is the same for all CLIP students
   const { data, error } = await supabaseAdmin
     .from("exam_calendar")
     .select("*")
-    .eq("student_id", studentId)
     .order("exam_date", { ascending: true });
 
   if (error) throw error;
