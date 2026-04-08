@@ -140,3 +140,94 @@
       border-color 200ms ease-out, box-shadow 200ms ease-out;
   }
 }
+
+/* ── Auth Landing Page Animations ── */
+
+/* Gradient shimmer for typed text */
+.gradient-shimmer-text {
+  background: linear-gradient(90deg, #818cf8, #a78bfa, #22d3ee, #818cf8);
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: gradient-shimmer 3s linear infinite;
+}
+
+@keyframes gradient-shimmer {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+/* Floating gradient orbs */
+@keyframes float-orb-1 {
+  0%, 100% { transform: translateY(0) translateX(0); }
+  33% { transform: translateY(30px) translateX(-10px); }
+  66% { transform: translateY(-20px) translateX(15px); }
+}
+@keyframes float-orb-2 {
+  0%, 100% { transform: translateX(0) translateY(0); }
+  50% { transform: translateX(-25px) translateY(20px); }
+}
+@keyframes float-orb-3 {
+  0%, 100% { transform: translateY(0) translateX(0); }
+  50% { transform: translateY(-30px) translateX(-20px); }
+}
+
+/* Subject icons orbit */
+@keyframes orbit {
+  from { rotate: 0deg; }
+  to { rotate: 360deg; }
+}
+
+/* Auth card animated gradient border */
+.auth-card-border {
+  background: conic-gradient(
+    from var(--border-angle, 0deg),
+    #6366f1 0deg,
+    #8b5cf6 120deg,
+    #22d3ee 240deg,
+    #6366f1 360deg
+  );
+  animation: rotate-border 3s linear infinite;
+}
+
+@keyframes rotate-border {
+  to { --border-angle: 360deg; }
+}
+
+@property --border-angle {
+  syntax: "<angle>";
+  initial-value: 0deg;
+  inherits: false;
+}
+
+/* Auth card glow pulse */
+.auth-card-glow {
+  animation: glow-pulse 4s ease-in-out infinite;
+}
+
+@keyframes glow-pulse {
+  0%, 100% { box-shadow: 0 0 30px rgba(99, 102, 241, 0.05); }
+  50% { box-shadow: 0 0 50px rgba(99, 102, 241, 0.15); }
+}
+
+/* Countdown digit pop */
+@keyframes digit-pop {
+  0% { transform: scale(1.15); opacity: 0.7; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .gradient-shimmer-text {
+    animation: none;
+  }
+  .auth-card-border {
+    animation: none;
+    background: linear-gradient(135deg, #6366f1, #8b5cf6, #22d3ee);
+  }
+  .auth-card-glow {
+    animation: none;
+  }
+}
