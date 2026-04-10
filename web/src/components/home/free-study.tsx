@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Brain, Target, FileText } from "lucide-react";
+import { Brain, Target, FileText, MessageCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { LucideIcon } from "lucide-react";
 
@@ -15,6 +15,14 @@ interface StudyAction {
 }
 
 const ACTIONS: StudyAction[] = [
+  {
+    href: "/study/session?mood=normal",
+    icon: MessageCircle,
+    title: "Chat Tutor",
+    subtitle: "Ask anything, free study",
+    gradient: "from-sky-500/15 to-cyan-500/15",
+    iconColor: "text-sky-400",
+  },
   {
     href: "/study/flashcards",
     icon: Brain,

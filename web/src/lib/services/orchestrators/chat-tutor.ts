@@ -1275,12 +1275,12 @@ function buildGreeting(mood: Mood, blocks: StudyPlanEntry[], name: string): stri
 function buildFreeStudyGreeting(mood: Mood, name: string): string {
   switch (mood) {
     case "unmotivated":
-      return `Hi ${name}! No scheduled blocks today — let's just review whatever feels right. What subject would you like to look at?`;
+      return `Hi ${name}! Let's just review whatever feels right. What subject would you like to look at? You can ask me about Chemistry, Physics, Biology, CS, French, or Portuguese.`;
     case "normal":
-      return `Hi ${name}! Your schedule is clear today. Want to review some weak topics or practice something specific?`;
+      return `Hi ${name}! What would you like to study? Pick any topic, ask me a question, or say "quiz me on [subject]" and I'll set it up for you.`;
     case "good":
-      return `Hi ${name}! Free study day! Want to tackle some weak spots or explore something interesting?`;
+      return `Hi ${name}! Free study mode! Want to tackle some weak spots, explore a topic, or practice exam questions? Just tell me what you need.`;
     case "motivated":
-      return `${name}! No schedule constraints today — perfect for deep diving! What do you want to master?`;
+      return `${name}! Ready to go! What do you want to master today? Name a topic, ask a question, or say "quiz me" and let's dive in!`;
   }
 }
