@@ -124,7 +124,7 @@ export default function FreeStudyPage() {
   }, [subjectCode]);
 
   const handleStart = () => {
-    if (!subjectCode) return;
+    if (!subjectCode && mode !== "exam") return;
 
     switch (mode) {
       case "tutor":
@@ -144,9 +144,7 @@ export default function FreeStudyPage() {
         );
         break;
       case "exam":
-        router.push(
-          `/study/exam?subject=${subjectCode}`,
-        );
+        router.push("/study/exam");
         break;
     }
   };
@@ -206,7 +204,8 @@ export default function FreeStudyPage() {
         </div>
       </motion.div>
 
-      {/* Subject selection */}
+      {/* Subject selection (hidden for exam — exam page has its own picker) */}
+      {mode !== "exam" && (
       <motion.div
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
@@ -243,9 +242,10 @@ export default function FreeStudyPage() {
           })}
         </div>
       </motion.div>
+      )}
 
-      {/* Topic selection (optional) */}
-      {subjectCode && (
+      {/* Topic selection (optional — hidden for exam mode) */}
+      {subjectCode && mode !== "exam" && (
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
@@ -300,7 +300,7 @@ export default function FreeStudyPage() {
       >
         <Button
           size="lg"
-          disabled={!subjectCode}
+          disabled={!subjectCode && mode !== "exam"}
           onClick={handleStart}
           className="px-8 gap-2 cursor-pointer text-base"
         >
