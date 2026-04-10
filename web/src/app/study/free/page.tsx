@@ -8,6 +8,7 @@ import {
   Brain,
   Target,
   FileEdit,
+  FileText,
   ArrowRight,
   Sparkles,
   type LucideIcon,
@@ -20,7 +21,7 @@ import { cn } from "@/lib/utils";
 
 // ── Mode definitions ────────────────────────────────────
 
-type StudyMode = "tutor" | "flashcards" | "quiz" | "review";
+type StudyMode = "tutor" | "flashcards" | "quiz" | "review" | "exam";
 
 interface ModeOption {
   key: StudyMode;
@@ -63,6 +64,14 @@ const MODES: ModeOption[] = [
     subtitle: "Check and improve your notes",
     gradient: "from-emerald-500/20 to-teal-500/20",
     iconColor: "text-emerald-400",
+  },
+  {
+    key: "exam",
+    icon: FileText,
+    title: "Past Papers",
+    subtitle: "Full exam practice",
+    gradient: "from-rose-500/20 to-pink-500/20",
+    iconColor: "text-rose-400",
   },
 ];
 
@@ -131,7 +140,12 @@ export default function FreeStudyPage() {
         break;
       case "quiz":
         router.push(
-          `/study/quiz/session?subject=${subjectCode}${topicId ? `&topic=${topicId}` : ""}&count=10&type=mixed`,
+          `/study/quiz/session?subject=${subjectCode}${topicId ? `&topic=${topicId}` : ""}&count=10&type=all`,
+        );
+        break;
+      case "exam":
+        router.push(
+          `/study/exam?subject=${subjectCode}`,
         );
         break;
     }
@@ -164,7 +178,7 @@ export default function FreeStudyPage() {
         <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
           Choose a mode
         </p>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
           {MODES.map((m) => {
             const Icon = m.icon;
             const selected = mode === m.key;
