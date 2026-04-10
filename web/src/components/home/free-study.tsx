@@ -1,90 +1,42 @@
 "use client";
 
 import Link from "next/link";
-import { Brain, Target, FileText, MessageCircle } from "lucide-react";
+import { Sparkles, ArrowRight } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { LucideIcon } from "lucide-react";
-
-interface StudyAction {
-  href: string;
-  icon: LucideIcon;
-  title: string;
-  subtitle: string;
-  gradient: string;
-  iconColor: string;
-}
-
-const ACTIONS: StudyAction[] = [
-  {
-    href: "/study/free",
-    icon: MessageCircle,
-    title: "Free Study",
-    subtitle: "Pick a subject, ask anything",
-    gradient: "from-sky-500/15 to-cyan-500/15",
-    iconColor: "text-sky-400",
-  },
-  {
-    href: "/study/flashcards",
-    icon: Brain,
-    title: "Flashcards",
-    subtitle: "Practice facts and concepts",
-    gradient: "from-violet-500/15 to-fuchsia-500/15",
-    iconColor: "text-violet-400",
-  },
-  {
-    href: "/study/quiz",
-    icon: Target,
-    title: "Quick Quiz",
-    subtitle: "Exam questions",
-    gradient: "from-amber-500/15 to-orange-500/15",
-    iconColor: "text-amber-400",
-  },
-  {
-    href: "/study/exam",
-    icon: FileText,
-    title: "Exam Practice",
-    subtitle: "Full paper",
-    gradient: "from-emerald-500/15 to-teal-500/15",
-    iconColor: "text-emerald-400",
-  },
-];
 
 export function FreeStudy() {
   return (
-    <div className="grid grid-cols-1 gap-3">
-      {ACTIONS.map((action) => {
-        const Icon = action.icon;
-        return (
-          <Link
-            key={action.href}
-            href={action.href}
-            className={cn(
-              "bg-card rounded-2xl p-3 border border-border",
-              "hover:border-primary/30 hover:shadow-lg hover:shadow-primary/5",
-              "transition-all duration-200 group cursor-pointer",
-              "flex items-center gap-3"
-            )}
-          >
-            <div
-              className={cn(
-                "w-8 h-8 rounded-xl flex-shrink-0 flex items-center justify-center",
-                "bg-gradient-to-br group-hover:scale-105 transition-transform",
-                action.gradient
-              )}
-            >
-              <Icon className={cn("w-4 h-4", action.iconColor)} />
-            </div>
-            <div>
-              <p className="text-sm font-semibold text-foreground">
-                {action.title}
-              </p>
-              <p className="text-xs text-muted-foreground">
-                {action.subtitle}
-              </p>
-            </div>
-          </Link>
-        );
-      })}
-    </div>
+    <Link
+      href="/study/free"
+      className={cn(
+        "group relative block rounded-2xl overflow-hidden cursor-pointer",
+        "border border-border hover:border-primary/40",
+        "transition-all duration-300",
+        "hover:shadow-xl hover:shadow-primary/10 hover:scale-[1.01]",
+      )}
+    >
+      {/* Gradient background */}
+      <div className="absolute inset-0 bg-gradient-to-br from-sky-500/10 via-violet-500/10 to-amber-500/10 opacity-60 group-hover:opacity-100 transition-opacity" />
+
+      <div className="relative p-5 flex items-center gap-4">
+        {/* Icon */}
+        <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-sky-500/20 to-violet-500/20 flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform duration-300">
+          <Sparkles className="w-6 h-6 text-sky-400" />
+        </div>
+
+        {/* Text */}
+        <div className="flex-1 min-w-0">
+          <p className="text-base font-bold text-foreground">
+            Free Study
+          </p>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Chat tutor, flashcards, quiz, note review — pick a subject and go
+          </p>
+        </div>
+
+        {/* Arrow */}
+        <ArrowRight className="w-5 h-5 text-muted-foreground group-hover:text-primary group-hover:translate-x-1 transition-all shrink-0" />
+      </div>
+    </Link>
   );
 }
