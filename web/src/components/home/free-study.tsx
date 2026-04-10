@@ -16,10 +16,10 @@ interface StudyAction {
 
 const ACTIONS: StudyAction[] = [
   {
-    href: "/study/session?mood=normal",
+    href: "/study/free",
     icon: MessageCircle,
-    title: "Chat Tutor",
-    subtitle: "Ask anything, free study",
+    title: "Free Study",
+    subtitle: "Pick a subject, ask anything",
     gradient: "from-sky-500/15 to-cyan-500/15",
     iconColor: "text-sky-400",
   },

@@ -648,11 +648,14 @@ export async function fetchSubjectMasteryDrillDown(subjectCode: string) {
 // Chat Tutor Session
 // ============================================================
 
-export async function startChatSession(mood: string) {
+export async function startChatSession(
+  mood: string,
+  options?: { subject_code?: string; topic_id?: string; mode?: "tutor" | "review" },
+) {
   const res = await fetch(`${BASE}/api/session/start`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ mood }),
+    body: JSON.stringify({ mood, ...options }),
   });
   if (!res.ok) throw new Error("Failed to start session");
   return res.json() as Promise<{

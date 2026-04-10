@@ -42,12 +42,22 @@ export interface SessionStartResult {
   tutor_greeting: string;
 }
 
+export interface FreeStudyOptions {
+  subjectCode?: string;
+  topicId?: string;
+  mode?: "tutor" | "review";
+}
+
 export async function startSession(
   mood: Mood,
-  studentId: string): Promise<SessionStartResult> {
-  // Fetch today's study plan + student profile + prompt in parallel
+  studentId: string,
+  options?: FreeStudyOptions,
+): Promise<SessionStartResult> {
+  const isFreeStudy = !!options?.subjectCode;
+
+  // Fetch student profile + prompt in parallel; skip plan if free study
   const [planData, studentRes, promptTemplate] = await Promise.all([
-    getTodayPlan(studentId),
+    isFreeStudy ? Promise.resolve({ today: [], overdue: [] }) : getTodayPlan(studentId),
     supabaseAdmin
       .from("students")
       .select("name, tutor_prompt")
@@ -57,12 +67,26 @@ export async function startSession(
   ]);
 
   const studentName = ((studentRes.data?.name as string) ?? "").split(" ")[0] || "there";
-  const NON_STUDY_SUBJECTS = new Set(["PERSONAL", "ART"]);
-  const allPending = [...planData.today, ...planData.overdue].filter(
-    (b) => b.status === "pending" && b.study_type !== "exam" && !NON_STUDY_SUBJECTS.has(b.subject_code),
-  );
-  // One block per session — focus on the next pending study block
-  const blocks = allPending.length > 0 ? [allPending[0]] : [];
+
+  let blocks: StudyPlanEntry[] = [];
+  if (!isFreeStudy) {
+    const NON_STUDY_SUBJECTS = new Set(["PERSONAL", "ART"]);
+    const allPending = [...planData.today, ...planData.overdue].filter(
+      (b) => b.status === "pending" && b.study_type !== "exam" && !NON_STUDY_SUBJECTS.has(b.subject_code),
+    );
+    blocks = allPending.length > 0 ? [allPending[0]] : [];
+  }
+
+  // Resolve topic name for free study greeting
+  let topicName: string | null = null;
+  if (options?.topicId) {
+    const { data: topicRow } = await supabaseAdmin
+      .from("syllabus_topics")
+      .select("topic_name")
+      .eq("id", options.topicId)
+      .single();
+    topicName = (topicRow?.topic_name as string) ?? null;
+  }
 
   // Create chat_tutor session
   const { data: session, error: sessionError } = await supabaseAdmin
@@ -74,7 +98,7 @@ export async function startSession(
       status: "active",
       current_block_index: 0,
       block_phase: "intro",
-      subject_code: blocks[0]?.subject_code ?? null,
+      subject_code: options?.subjectCode ?? blocks[0]?.subject_code ?? null,
     })
     .select()
     .single();
@@ -83,10 +107,10 @@ export async function startSession(
   const sessionId = session.id as string;
 
   // Build greeting
-  const firstBlock = blocks[0];
   let greeting: string;
-
-  if (!firstBlock) {
+  if (isFreeStudy) {
+    greeting = buildFreeStudyContextGreeting(studentName, options?.subjectCode ?? "", topicName, options?.mode);
+  } else if (blocks.length === 0) {
     greeting = buildFreeStudyGreeting(mood, studentName);
   } else {
     greeting = buildGreeting(mood, blocks, studentName);
@@ -1270,6 +1294,32 @@ function buildGreeting(mood: Mood, blocks: StudyPlanEntry[], name: string): stri
     case "motivated":
       return `${name}! Love the energy! Let's crush **${title}**${timeSlot}.${typeHint} Let's go!`;
   }
+}
+
+const SUBJECT_DISPLAY_NAMES: Record<string, string> = {
+  "0620": "Chemistry", "0625": "Physics", "0610": "Biology",
+  "0478": "Computer Science", "0520": "French", "0504": "Portuguese",
+  "0500": "English Language", "0475": "English Literature",
+};
+
+function buildFreeStudyContextGreeting(
+  name: string,
+  subjectCode: string,
+  topicName: string | null,
+  mode?: "tutor" | "review",
+): string {
+  const subject = SUBJECT_DISPLAY_NAMES[subjectCode] ?? subjectCode;
+  const topicPart = topicName ? ` — **${topicName}**` : "";
+
+  if (mode === "review") {
+    return `Hi ${name}! Ready to review your ${subject}${topicPart} notes. Share what you've written and I'll help you check it, fill in gaps, and highlight what's important for the exam.`;
+  }
+
+  if (topicName) {
+    return `Hi ${name}! Let's study **${subject}**${topicPart}. What would you like to start with? I can explain concepts, quiz you, or do flashcards — just ask!`;
+  }
+
+  return `Hi ${name}! Let's study **${subject}**. What topic or question would you like to start with? I can explain, quiz you, do flashcards, or review your notes — just tell me!`;
 }
 
 function buildFreeStudyGreeting(mood: Mood, name: string): string {
