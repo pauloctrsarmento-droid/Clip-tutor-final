@@ -52,28 +52,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Load Supabase Auth session
     const supabase = createSupabaseBrowser();
 
-    supabase.auth.getUser().then(({ data: { user: authUser } }) => {
-      setUser(authUser);
-      if (authUser) {
-        // Query student profile directly via browser client (avoids middleware cookie issues)
-        Promise.resolve(
-          supabase
-            .from("students")
-            .select("id, name")
-            .eq("auth_id", authUser.id)
-            .single()
-        )
-          .then(({ data: profile }) => {
-            if (profile) {
-              setStudentName(profile.name);
-              setStudentId(profile.id);
-            }
-          })
-          .finally(() => setLoading(false));
-      } else {
+    supabase.auth
+      .getUser()
+      .then(({ data: { user: authUser } }) => {
+        setUser(authUser);
+        if (authUser) {
+          // Query student profile directly via browser client (avoids middleware cookie issues)
+          Promise.resolve(
+            supabase
+              .from("students")
+              .select("id, name")
+              .eq("auth_id", authUser.id)
+              .single()
+          )
+            .then(({ data: profile }) => {
+              if (profile) {
+                setStudentName(profile.name);
+                setStudentId(profile.id);
+              }
+            })
+            .finally(() => setLoading(false));
+        } else {
+          setLoading(false);
+        }
+      })
+      .catch(() => {
+        // No session / network / CORS — treat as logged out so AuthGuard can redirect.
+        setUser(null);
         setLoading(false);
-      }
-    });
+      });
 
     // Listen for auth changes (login/logout/token refresh)
     const { data: { subscription } } = supabase.auth.onAuthStateChange(

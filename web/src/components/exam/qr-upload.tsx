@@ -14,22 +14,25 @@ interface RemotePhoto {
 interface QrUploadProps {
   sessionId: string;
   onPhotosReceived: (files: File[]) => void;
+  onPhotoRemoved: (name: string) => void;
 }
 
 /**
- * Shows a QR code for mobile photo upload + polls for new photos.
- * When photos arrive, converts them to File objects and passes them up.
+ * Shows a QR code for mobile photo upload + polls the remote bucket.
+ * New photos arrive as File objects; deletions propagate via onPhotoRemoved.
  */
-export function QrUpload({ sessionId, onPhotosReceived }: QrUploadProps) {
+export function QrUpload({ sessionId, onPhotosReceived, onPhotoRemoved }: QrUploadProps) {
   const [remotePhotos, setRemotePhotos] = useState<RemotePhoto[]>([]);
   const [polling, setPolling] = useState(true);
   const knownRef = useRef<Set<string>>(new Set());
-  const callbackRef = useRef(onPhotosReceived);
-  callbackRef.current = onPhotosReceived;
+  const receivedRef = useRef(onPhotosReceived);
+  const removedRef = useRef(onPhotoRemoved);
+  receivedRef.current = onPhotosReceived;
+  removedRef.current = onPhotoRemoved;
 
   const uploadUrl =
     typeof window !== "undefined"
-      ? `${window.location.origin}/study/exam/upload/${sessionId}`
+      ? `${window.location.origin}/m/${sessionId}`
       : "";
 
   const pollPhotos = useCallback(async () => {
@@ -37,10 +40,19 @@ export function QrUpload({ sessionId, onPhotosReceived }: QrUploadProps) {
       const res = await fetch(`/api/exam-photos/list?sessionId=${sessionId}`);
       if (!res.ok) return;
       const data = (await res.json()) as { photos: RemotePhoto[] };
-      const newPhotos = data.photos.filter((p) => !knownRef.current.has(p.name));
+      const currentNames = new Set(data.photos.map((p) => p.name));
 
+      // Detect removals: previously-known names absent from current list
+      for (const known of knownRef.current) {
+        if (!currentNames.has(known)) {
+          knownRef.current.delete(known);
+          removedRef.current(known);
+        }
+      }
+
+      // Detect additions
+      const newPhotos = data.photos.filter((p) => !knownRef.current.has(p.name));
       if (newPhotos.length > 0) {
-        // Convert URLs to File objects
         const files: File[] = [];
         for (const photo of newPhotos) {
           try {
@@ -50,16 +62,15 @@ export function QrUpload({ sessionId, onPhotosReceived }: QrUploadProps) {
             files.push(file);
             knownRef.current.add(photo.name);
           } catch {
-            // Skip failed downloads
+            // Skip failed downloads — will retry next poll
           }
         }
-
         if (files.length > 0) {
-          callbackRef.current(files);
+          receivedRef.current(files);
         }
-
-        setRemotePhotos(data.photos);
       }
+
+      setRemotePhotos(data.photos);
     } catch {
       // Silently fail — will retry on next poll
     }

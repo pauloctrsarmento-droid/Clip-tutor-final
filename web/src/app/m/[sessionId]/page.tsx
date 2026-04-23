@@ -2,7 +2,7 @@
 
 import { useState, useRef, useCallback } from "react";
 import { useParams } from "next/navigation";
-import { Camera, CheckCircle, Loader2, ImagePlus } from "lucide-react";
+import { Camera, Loader2, ImagePlus, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface UploadedPhoto {
@@ -14,6 +14,7 @@ export default function MobileUploadPage() {
   const { sessionId } = useParams<{ sessionId: string }>();
   const [photos, setPhotos] = useState<UploadedPhoto[]>([]);
   const [uploading, setUploading] = useState(false);
+  const [deleting, setDeleting] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -54,6 +55,27 @@ export default function MobileUploadPage() {
       e.target.value = "";
     },
     [uploadPhoto]
+  );
+
+  const deletePhoto = useCallback(
+    async (name: string) => {
+      setDeleting(name);
+      setError(null);
+      try {
+        const res = await fetch("/api/exam-photos/delete", {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ sessionId, filename: name }),
+        });
+        if (!res.ok) throw new Error("Delete failed");
+        setPhotos((prev) => prev.filter((p) => p.name !== name));
+      } catch {
+        setError("Failed to delete. Try again.");
+      } finally {
+        setDeleting(null);
+      }
+    },
+    [sessionId]
   );
 
   return (
@@ -124,9 +146,23 @@ export default function MobileUploadPage() {
                   alt={`Answer sheet ${i + 1}`}
                   className="w-full h-full object-cover"
                 />
-                <div className="absolute top-2 right-2 w-6 h-6 rounded-full bg-emerald-500 flex items-center justify-center">
-                  <CheckCircle className="w-4 h-4 text-white" />
-                </div>
+                <button
+                  type="button"
+                  onClick={() => void deletePhoto(photo.name)}
+                  disabled={deleting === photo.name}
+                  aria-label={`Delete page ${i + 1}`}
+                  className={cn(
+                    "absolute top-2 right-2 w-8 h-8 rounded-full bg-black/70 text-white flex items-center justify-center",
+                    "active:bg-black/90 transition-colors",
+                    deleting === photo.name && "opacity-50"
+                  )}
+                >
+                  {deleting === photo.name ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <X className="w-4 h-4" />
+                  )}
+                </button>
                 <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-2">
                   <span className="text-xs text-white font-medium">
                     Page {i + 1}

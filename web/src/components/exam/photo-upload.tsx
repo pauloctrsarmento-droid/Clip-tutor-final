@@ -8,10 +8,11 @@ import { cn } from "@/lib/utils";
 interface PhotoUploadProps {
   photos: File[];
   onChange: (photos: File[]) => void;
+  onRemoveAt?: (index: number) => void;
   maxPhotos?: number;
 }
 
-export function PhotoUpload({ photos, onChange, maxPhotos = 10 }: PhotoUploadProps) {
+export function PhotoUpload({ photos, onChange, onRemoveAt, maxPhotos = 10 }: PhotoUploadProps) {
   const [isDragging, setIsDragging] = useState(false);
   const [previews, setPreviews] = useState<string[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -40,9 +41,13 @@ export function PhotoUpload({ photos, onChange, maxPhotos = 10 }: PhotoUploadPro
 
   const removePhoto = useCallback(
     (index: number) => {
-      onChange(photos.filter((_, i) => i !== index));
+      if (onRemoveAt) {
+        onRemoveAt(index);
+      } else {
+        onChange(photos.filter((_, i) => i !== index));
+      }
     },
-    [photos, onChange]
+    [photos, onChange, onRemoveAt]
   );
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
@@ -138,9 +143,10 @@ export function PhotoUpload({ photos, onChange, maxPhotos = 10 }: PhotoUploadPro
               <button
                 type="button"
                 onClick={() => removePhoto(i)}
-                className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full bg-black/60 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                aria-label={`Remove photo ${i + 1}`}
+                className="absolute top-1.5 right-1.5 w-7 h-7 rounded-full bg-black/70 text-white flex items-center justify-center hover:bg-black/90 active:bg-black transition-colors cursor-pointer"
               >
-                <X className="w-3.5 h-3.5" />
+                <X className="w-4 h-4" />
               </button>
             </div>
           ))}

@@ -10,7 +10,7 @@ const PROTECTED_PREFIXES = [
   "/api/session",
   "/api/study-plan/today",
   "/api/study-plan/[id]/student-update",
-  "/api/exam",
+  "/api/exam/",
   "/api/mastery",
   "/api/suggestions",
   "/api/exam-calendar",

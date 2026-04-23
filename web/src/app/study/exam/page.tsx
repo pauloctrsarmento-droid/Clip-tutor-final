@@ -59,6 +59,7 @@ function ExamPageInner() {
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [timeLimitMinutes, setTimeLimitMinutes] = useState(60);
   const [photos, setPhotos] = useState<File[]>([]);
+  const [remoteNames, setRemoteNames] = useState<Set<string>>(new Set());
   const [results, setResults] = useState<ExamResultsType | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -69,6 +70,7 @@ function ExamPageInner() {
     setSessionId(null);
     setTimeLimitMinutes(60);
     setPhotos([]);
+    setRemoteNames(new Set());
     setResults(null);
     setSubmitting(false);
     setError(null);
@@ -118,7 +120,45 @@ function ExamPageInner() {
 
   const handleRemotePhotos = useCallback((files: File[]) => {
     setPhotos((prev) => [...prev, ...files]);
+    setRemoteNames((prev) => {
+      const next = new Set(prev);
+      for (const f of files) next.add(f.name);
+      return next;
+    });
   }, []);
+
+  const handleRemotePhotoRemoved = useCallback((name: string) => {
+    setPhotos((prev) => prev.filter((f) => f.name !== name));
+    setRemoteNames((prev) => {
+      if (!prev.has(name)) return prev;
+      const next = new Set(prev);
+      next.delete(name);
+      return next;
+    });
+  }, []);
+
+  const handleRemovePhotoAt = useCallback(
+    (index: number) => {
+      const file = photos[index];
+      if (!file) return;
+      const wasRemote = sessionId && remoteNames.has(file.name);
+      setPhotos((prev) => prev.filter((_, i) => i !== index));
+      if (wasRemote) {
+        setRemoteNames((prev) => {
+          const next = new Set(prev);
+          next.delete(file.name);
+          return next;
+        });
+        // Fire-and-forget: remote cleanup should not block the UI.
+        void fetch("/api/exam-photos/delete", {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ sessionId, filename: file.name }),
+        });
+      }
+    },
+    [photos, sessionId, remoteNames]
+  );
 
   const handleTimerExpire = useCallback(() => {
     // Auto-submit when time is up if there are photos
@@ -311,10 +351,19 @@ function ExamPageInner() {
               </ul>
             </div>
 
-            <PhotoUpload photos={photos} onChange={setPhotos} maxPhotos={10} />
+            <PhotoUpload
+              photos={photos}
+              onChange={setPhotos}
+              onRemoveAt={handleRemovePhotoAt}
+              maxPhotos={10}
+            />
 
             {sessionId && (
-              <QrUpload sessionId={sessionId} onPhotosReceived={handleRemotePhotos} />
+              <QrUpload
+                sessionId={sessionId}
+                onPhotosReceived={handleRemotePhotos}
+                onPhotoRemoved={handleRemotePhotoRemoved}
+              />
             )}
 
             {error && (

@@ -19,16 +19,17 @@ export async function POST(request: Request) {
       );
     }
 
-    // Generate unique filename
+    // Generate unique basename (scoped under sessionId folder).
     const ext = photo.name.split(".").pop() ?? "jpg";
-    const filename = `${sessionId}/${Date.now()}.${ext}`;
+    const basename = `${Date.now()}.${ext}`;
+    const path = `${sessionId}/${basename}`;
 
     const arrayBuffer = await photo.arrayBuffer();
     const buffer = new Uint8Array(arrayBuffer);
 
     const { error } = await supabaseAdmin.storage
       .from("exam-photos")
-      .upload(filename, buffer, {
+      .upload(path, buffer, {
         contentType: photo.type,
         upsert: false,
       });
@@ -37,9 +38,11 @@ export async function POST(request: Request) {
 
     const { data: urlData } = supabaseAdmin.storage
       .from("exam-photos")
-      .getPublicUrl(filename);
+      .getPublicUrl(path);
 
-    return Response.json({ url: urlData.publicUrl, filename });
+    // Return only the basename so clients are consistent with /list output
+    // (the sessionId prefix is implicit).
+    return Response.json({ url: urlData.publicUrl, filename: basename });
   } catch (err) {
     return errorResponse(err);
   }
