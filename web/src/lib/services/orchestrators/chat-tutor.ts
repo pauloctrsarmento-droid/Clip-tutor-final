@@ -99,6 +99,7 @@ export async function startSession(
       current_block_index: 0,
       block_phase: "intro",
       subject_code: options?.subjectCode ?? blocks[0]?.subject_code ?? null,
+      syllabus_topic_id: options?.topicId ?? null,
     })
     .select()
     .single();
@@ -731,9 +732,23 @@ async function buildSystemPrompt(
   const runningSummary = (session.running_summary as string) ?? "";
   const blockPhase = (session.block_phase as string) ?? "intro";
   const currentBlockIndex = (session.current_block_index as number) ?? 0;
+  const sessionTopicId = (session.syllabus_topic_id as string) ?? null;
+
+  // Facts query: topic-scoped when the session has a pinned topic, else subject-wide.
+  const factsQuery = sessionTopicId
+    ? supabaseAdmin
+        .from("atomic_facts")
+        .select("fact_text")
+        .eq("syllabus_topic_id", sessionTopicId)
+        .limit(30)
+    : supabaseAdmin
+        .from("atomic_facts")
+        .select("fact_text")
+        .eq("subject_code", subjectCode)
+        .limit(20);
 
   // Parallel data fetching
-  const [promptTemplate, studentRes, memories, factsRes, planData] =
+  const [promptTemplate, studentRes, memories, factsRes, planData, topicRes] =
     await Promise.all([
       getPrompt("chat_tutor"),
       supabaseAdmin
@@ -742,13 +757,18 @@ async function buildSystemPrompt(
         .eq("id", studentId)
         .single(),
       loadMemories(studentId, subjectCode, 5),
-      supabaseAdmin
-        .from("atomic_facts")
-        .select("fact_text")
-        .eq("subject_code", subjectCode)
-        .limit(20),
+      factsQuery,
       getTodayPlan(studentId),
+      sessionTopicId
+        ? supabaseAdmin
+            .from("syllabus_topics")
+            .select("topic_name")
+            .eq("id", sessionTopicId)
+            .single()
+        : Promise.resolve({ data: null }),
     ]);
+
+  const pinnedTopicName = (topicRes?.data?.topic_name as string | undefined) ?? null;
 
   const studentProfile =
     (studentRes.data?.tutor_prompt as string) ?? "No profile available";
@@ -813,13 +833,22 @@ async function buildSystemPrompt(
     }
   }
 
+  // Free-study focus hint: when the session is pinned to a specific topic,
+  // stay on that topic unless the student explicitly asks to move on.
+  if (pinnedTopicName) {
+    timeNudge += `\n[FOCUS: Free-study session pinned to topic "${pinnedTopicName}". Stay on this topic unless the student explicitly asks to move on.]`;
+  }
+
   // Replace template variables
   let prompt = promptTemplate
     .replace(/\{\{student_profile\}\}/g, studentProfile)
     .replace(/\{\{language_name\}\}/g, languageName)
     .replace(/\{\{language\}\}/g, languageName)
     .replace(/\{\{subject_name\}\}/g, subjectCode)
-    .replace(/\{\{topic_name\}\}/g, allBlocks[currentBlockIndex]?.title ?? "General review")
+    .replace(
+      /\{\{topic_name\}\}/g,
+      pinnedTopicName ?? allBlocks[currentBlockIndex]?.title ?? "General review",
+    )
     .replace(/\{\{mastery_data\}\}/g, "See recent quiz results")
     .replace(/\{\{today_plan\}\}/g, planSummary)
     .replace(/\{\{days_until_exam\}\}/g, "See exam calendar")

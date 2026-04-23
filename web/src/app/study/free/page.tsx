@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
 import {
   MessageCircle,
@@ -94,9 +94,15 @@ interface TopicItem {
   topic_name: string;
 }
 
-export default function FreeStudyPage() {
+function FreeStudyPageInner() {
   const router = useRouter();
-  const [mode, setMode] = useState<StudyMode>("tutor");
+  const searchParams = useSearchParams();
+  const initialMode = (searchParams.get("mode") as StudyMode | null) ?? "tutor";
+  const [mode, setMode] = useState<StudyMode>(
+    (["tutor", "flashcards", "quiz", "review", "exam"] as const).includes(initialMode)
+      ? initialMode
+      : "tutor",
+  );
   const [subjectCode, setSubjectCode] = useState<string | null>(null);
   const [topicId, setTopicId] = useState<string | null>(null);
   const [topics, setTopics] = useState<TopicItem[]>([]);
@@ -123,26 +129,36 @@ export default function FreeStudyPage() {
       .finally(() => setTopicsLoading(false));
   }, [subjectCode]);
 
+  // Tutor mode allows starting with no subject (fully free chat).
+  // Every other mode (except exam which has its own picker) still requires a subject.
+  const subjectRequired = mode !== "exam" && mode !== "tutor";
+  const canStart = mode === "exam" || Boolean(subjectCode) || mode === "tutor";
+
   const handleStart = () => {
-    if (!subjectCode && mode !== "exam") return;
+    if (!canStart) return;
+
+    const parts: string[] = [];
+    if (subjectCode) parts.push(`subject=${subjectCode}`);
+    if (topicId) parts.push(`topic=${topicId}`);
 
     switch (mode) {
       case "tutor":
-      case "review":
-        router.push(
-          `/study/free/session?subject=${subjectCode}${topicId ? `&topic=${topicId}` : ""}&mode=${mode}`,
-        );
+      case "review": {
+        parts.push(`mode=${mode}`);
+        const qs = parts.join("&");
+        router.push(`/study/free/session${qs ? `?${qs}` : ""}`);
         break;
-      case "flashcards":
-        router.push(
-          `/study/flashcards/session?subject=${subjectCode}${topicId ? `&topic=${topicId}` : ""}`,
-        );
+      }
+      case "flashcards": {
+        const qs = parts.join("&");
+        router.push(`/study/flashcards/session${qs ? `?${qs}` : ""}`);
         break;
-      case "quiz":
-        router.push(
-          `/study/quiz/session?subject=${subjectCode}${topicId ? `&topic=${topicId}` : ""}&count=10&type=all`,
-        );
+      }
+      case "quiz": {
+        parts.push("count=10", "type=all");
+        router.push(`/study/quiz/session?${parts.join("&")}`);
         break;
+      }
       case "exam":
         router.push("/study/exam");
         break;
@@ -213,7 +229,7 @@ export default function FreeStudyPage() {
         className="space-y-3"
       >
         <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-          Pick a subject
+          Pick a subject{subjectRequired ? "" : <span className="text-muted-foreground/60"> (optional)</span>}
         </p>
         <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
           {STUDY_SUBJECTS.map((code) => {
@@ -300,7 +316,7 @@ export default function FreeStudyPage() {
       >
         <Button
           size="lg"
-          disabled={!subjectCode && mode !== "exam"}
+          disabled={!canStart}
           onClick={handleStart}
           className="px-8 gap-2 cursor-pointer text-base"
         >
@@ -309,5 +325,13 @@ export default function FreeStudyPage() {
         </Button>
       </motion.div>
     </div>
+  );
+}
+
+export default function FreeStudyPage() {
+  return (
+    <Suspense>
+      <FreeStudyPageInner />
+    </Suspense>
   );
 }

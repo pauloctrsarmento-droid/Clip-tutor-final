@@ -1,6 +1,6 @@
 "use client";
 
-import { Play, CheckCircle, Flame, CalendarClock, BarChart3, Brain, Target, FileText } from "lucide-react";
+import { Play, CheckCircle, Flame, CalendarClock, BarChart3, Brain, Target, FileText, MessageCircle } from "lucide-react";
 import { motion } from "framer-motion";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
@@ -112,11 +112,12 @@ export function HeroCta({ blocks, overview, exams, onStartSession, onStartBlock,
             </p>
           </div>
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           {[
             { href: "/study/flashcards", icon: Brain, label: "Flashcards", sub: "Practice facts", gradient: "from-violet-500/20 to-fuchsia-500/20" },
             { href: "/study/quiz", icon: Target, label: "Quick Quiz", sub: "Exam questions", gradient: "from-amber-500/20 to-orange-500/20" },
             { href: "/study/exam", icon: FileText, label: "Exam Practice", sub: "Full paper", gradient: "from-emerald-500/20 to-teal-500/20" },
+            { href: "/study/free?mode=tutor", icon: MessageCircle, label: "Ask Tutor", sub: "Chat freely", gradient: "from-sky-500/20 to-cyan-500/20" },
           ].map((item) => (
             <Link
               key={item.href}
@@ -186,11 +187,12 @@ export function HeroCta({ blocks, overview, exams, onStartSession, onStartBlock,
           <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-3">
             Free study
           </p>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             {[
               { href: "/study/flashcards", icon: Brain, label: "Flashcards", sub: "Practice facts", gradient: "from-violet-500/20 to-fuchsia-500/20" },
               { href: "/study/quiz", icon: Target, label: "Quick Quiz", sub: "Exam questions", gradient: "from-amber-500/20 to-orange-500/20" },
               { href: "/study/exam", icon: FileText, label: "Exam Practice", sub: "Full paper", gradient: "from-emerald-500/20 to-teal-500/20" },
+              { href: "/study/free?mode=tutor", icon: MessageCircle, label: "Ask Tutor", sub: "Chat freely", gradient: "from-sky-500/20 to-cyan-500/20" },
             ].map((item) => (
               <Link
                 key={item.href}

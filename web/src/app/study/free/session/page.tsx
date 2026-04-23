@@ -10,7 +10,7 @@ import type { ActivityState } from "@/components/session/ActivityPanel";
 import { getSubjectMeta } from "@/lib/subject-meta";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Clock, X } from "lucide-react";
+import { ArrowLeft, Clock, X, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const SUBJECT_NAMES: Record<string, string> = {
@@ -22,7 +22,7 @@ function FreeSessionInner() {
   const searchParams = useSearchParams();
   const router = useRouter();
 
-  const subjectCode = searchParams.get("subject") ?? "0620";
+  const subjectCode = searchParams.get("subject") || null;
   const topicId = searchParams.get("topic") || undefined;
   const mode = (searchParams.get("mode") ?? "tutor") as "tutor" | "review";
 
@@ -48,7 +48,7 @@ function FreeSessionInner() {
     startedRef.current = true;
 
     startChatSession("normal", {
-      subject_code: subjectCode,
+      subject_code: subjectCode ?? undefined,
       topic_id: topicId,
       mode,
     })
@@ -71,7 +71,7 @@ function FreeSessionInner() {
   // React to tutor actions
   useEffect(() => {
     if (!chat.lastAction) return;
-    const newActivity = actionToActivity(chat.lastAction, subjectCode);
+    const newActivity = actionToActivity(chat.lastAction, subjectCode ?? "");
     if (newActivity) setActivity(newActivity);
 
     if (chat.lastAction.type === "end_session" && sessionId) {
@@ -103,9 +103,15 @@ function FreeSessionInner() {
     );
   }
 
-  const meta = getSubjectMeta(subjectCode);
-  const SubjectIcon = meta.icon;
-  const subjectName = SUBJECT_NAMES[subjectCode] ?? subjectCode;
+  const meta = subjectCode ? getSubjectMeta(subjectCode) : null;
+  const SubjectIcon = meta?.icon ?? Sparkles;
+  const subjectName = subjectCode
+    ? (SUBJECT_NAMES[subjectCode] ?? subjectCode)
+    : "Free Tutor";
+  const iconWrapperClass = meta
+    ? cn("bg-gradient-to-br", meta.gradient)
+    : "bg-gradient-to-br from-sky-500/20 to-cyan-500/20";
+  const iconAccentClass = meta?.accent ?? "text-sky-400";
 
   return (
     <div className="flex flex-col h-[calc(100vh-80px)] -my-5 -mx-8">
@@ -120,12 +126,12 @@ function FreeSessionInner() {
             <span className="text-xs">Back</span>
           </button>
           <div className="w-px h-5 bg-border" />
-          <div className={cn("w-7 h-7 rounded-lg flex items-center justify-center bg-gradient-to-br", meta.gradient)}>
-            <SubjectIcon className={cn("w-4 h-4", meta.accent)} />
+          <div className={cn("w-7 h-7 rounded-lg flex items-center justify-center", iconWrapperClass)}>
+            <SubjectIcon className={cn("w-4 h-4", iconAccentClass)} />
           </div>
           <div>
             <p className="text-sm font-semibold text-foreground">
-              Free Study: {subjectName}
+              {subjectCode ? `Free Study: ${subjectName}` : subjectName}
             </p>
             <p className="text-[10px] text-muted-foreground">
               {mode === "review" ? "Note review mode" : "Ask anything"}
@@ -168,8 +174,8 @@ function FreeSessionInner() {
         <div className="w-1/2 bg-card/30">
           <ActivityPanel
             activity={activity}
-            subjectCode={subjectCode}
-            topicTitle={`Free Study: ${subjectName}`}
+            subjectCode={subjectCode ?? ""}
+            topicTitle={subjectCode ? `Free Study: ${subjectName}` : "Free Tutor"}
             blockPhase={chat.lastInternal?.current_phase ?? "intro"}
             elapsedMinutes={elapsedMinutes}
             onQuizComplete={handleQuizComplete}
