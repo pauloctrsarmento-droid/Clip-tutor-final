@@ -76,69 +76,66 @@ export async function getOverview(
 export async function getSubjectMastery(
   studentId: string
 ): Promise<SubjectMastery[]> {
-  // Get all subjects
-  const { data: subjects } = await supabaseAdmin
-    .from("subjects")
-    .select("code, name")
-    .order("code");
-
-  if (!subjects) return [];
-
-  const results: SubjectMastery[] = [];
-
-  for (const s of subjects) {
-    // Get topics for this subject
-    const { data: subjectRow } = await supabaseAdmin
-      .from("subjects")
-      .select("id")
-      .eq("code", s.code)
-      .single();
-
-    const { data: topics } = await supabaseAdmin
-      .from("syllabus_topics")
-      .select("id")
-      .eq("subject_id", subjectRow?.id);
-
-    const totalTopics = topics?.length ?? 0;
-    const topicIds = (topics ?? []).map((t) => t.id as string);
-
-    // Get topic mastery for this subject
-    let masteredTopics = 0;
-    let masteryPercent = 0;
-    if (topicIds.length > 0) {
-      const { data: topicMastery } = await supabaseAdmin
-        .from("student_topic_mastery")
-        .select("mastery_score")
-        .eq("student_id", studentId)
-        .in("syllabus_topic_id", topicIds);
-
-      masteredTopics = (topicMastery ?? []).filter(
-        (r) => (r.mastery_score as number) >= MASTERY.MASTERED_THRESHOLD
-      ).length;
-      // Average mastery score across all topics (consistent with drill-down view)
-      const avgScore = (topicMastery ?? []).reduce(
-        (sum, r) => sum + (r.mastery_score as number), 0
-      ) / totalTopics;
-      masteryPercent = totalTopics > 0 ? Math.round(avgScore * 100) : 0;
-    }
-
-    // Quiz stats for this subject
-    const { data: quizzes } = await supabaseAdmin
+  // Four parallel queries — all aggregation happens in JS.
+  const [subjectsRes, topicsRes, masteryRes, quizzesRes] = await Promise.all([
+    supabaseAdmin.from("subjects").select("id, code, name").order("code"),
+    supabaseAdmin.from("syllabus_topics").select("id, subject_id"),
+    supabaseAdmin
+      .from("student_topic_mastery")
+      .select("syllabus_topic_id, mastery_score")
+      .eq("student_id", studentId),
+    supabaseAdmin
       .from("quiz_attempts")
       .select("marks_awarded, marks_available, question_id")
-      .eq("student_id", studentId);
+      .eq("student_id", studentId),
+  ]);
 
-    const subjectQuizzes = (quizzes ?? []).filter((q) =>
-      (q.question_id as string).startsWith(s.code as string)
+  const subjects = subjectsRes.data ?? [];
+  const topics = topicsRes.data ?? [];
+  const masteryRows = masteryRes.data ?? [];
+  const quizzes = quizzesRes.data ?? [];
+
+  // Index topics by subject_id
+  const topicsBySubject = new Map<string, string[]>();
+  for (const t of topics) {
+    const sid = t.subject_id as string;
+    const list = topicsBySubject.get(sid);
+    if (list) list.push(t.id as string);
+    else topicsBySubject.set(sid, [t.id as string]);
+  }
+
+  // Index mastery by topic_id
+  const masteryByTopic = new Map<string, number>();
+  for (const r of masteryRows) {
+    masteryByTopic.set(r.syllabus_topic_id as string, r.mastery_score as number);
+  }
+
+  return subjects.map((s) => {
+    const subjectId = s.id as string;
+    const code = s.code as string;
+    const topicIds = topicsBySubject.get(subjectId) ?? [];
+    const totalTopics = topicIds.length;
+
+    let masteredTopics = 0;
+    let sumScore = 0;
+    for (const tid of topicIds) {
+      const score = masteryByTopic.get(tid) ?? 0;
+      sumScore += score;
+      if (score >= MASTERY.MASTERED_THRESHOLD) masteredTopics += 1;
+    }
+    const masteryPercent =
+      totalTopics > 0 ? Math.round((sumScore / totalTopics) * 100) : 0;
+
+    const subjectQuizzes = quizzes.filter((q) =>
+      (q.question_id as string).startsWith(code)
     );
-
     const quizAttempts = subjectQuizzes.length;
     const quizCorrect = subjectQuizzes.filter(
       (q) => (q.marks_awarded as number) >= (q.marks_available as number)
     ).length;
 
-    results.push({
-      subject_code: s.code as string,
+    return {
+      subject_code: code,
       subject_name: s.name as string,
       total_facts: totalTopics,
       mastered_facts: masteredTopics,
@@ -146,10 +143,8 @@ export async function getSubjectMastery(
       quiz_attempts: quizAttempts,
       quiz_accuracy:
         quizAttempts > 0 ? Math.round((quizCorrect / quizAttempts) * 100) : 0,
-    });
-  }
-
-  return results;
+    };
+  });
 }
 
 /**
