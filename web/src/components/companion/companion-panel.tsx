@@ -45,7 +45,7 @@ export const CompanionPanel = forwardRef<CompanionPanelHandle, CompanionPanelPro
           <div>
             <p className="text-sm font-semibold text-foreground">Tutor</p>
             <p className="text-[10px] text-muted-foreground">
-              I&apos;ll guide you — never give the answer.
+              Ask me anything about this question.
             </p>
           </div>
         </div>

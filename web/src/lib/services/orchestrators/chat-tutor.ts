@@ -63,7 +63,7 @@ export async function startSession(
       .single();
     const studentName =
       ((studentRes.data?.name as string) ?? "").split(" ")[0] || "there";
-    const greeting = `Hi ${studentName}! I'm here. Show me what you're stuck on — I'll guide you, never give the answer.`;
+    const greeting = `Hi ${studentName}! What are you stuck on? Tell me what you're thinking and we'll work through it.`;
 
     const { data: companionSession, error: companionError } = await supabaseAdmin
       .from("study_sessions")
