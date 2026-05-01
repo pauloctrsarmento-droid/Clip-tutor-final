@@ -43,12 +43,13 @@ export function useChatStream(sessionId: string | null) {
   }, []);
 
   const sendMessage = useCallback(
-    async (text: string, attachments?: Attachment[]) => {
-      if (!sessionId) return;
+    async (text: string, attachments?: Attachment[], sessionIdOverride?: string) => {
+      const sid = sessionIdOverride ?? sessionId;
+      if (!sid) return;
 
       // Add user message to local state
       addMessage({
-        session_id: sessionId,
+        session_id: sid,
         role: "user",
         content: text,
         images: [],
@@ -66,7 +67,7 @@ export function useChatStream(sessionId: string | null) {
       }));
 
       try {
-        const response = await sendSessionMessage(sessionId, text, attachments);
+        const response = await sendSessionMessage(sid, text, attachments);
 
         let fullText = "";
         let action: TutorAction | null = null;
@@ -95,7 +96,7 @@ export function useChatStream(sessionId: string | null) {
 
         // Add completed assistant message
         const assistantMsg: Omit<ChatMessage, "id" | "created_at"> = {
-          session_id: sessionId,
+          session_id: sid,
           role: "assistant",
           content: fullText,
           images: [],

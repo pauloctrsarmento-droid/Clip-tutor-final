@@ -5,6 +5,7 @@ import { cn } from "@/lib/utils";
 import { ChatRichText } from "./ChatRichText";
 import { isImageAttachment } from "@/lib/types";
 import type { Attachment } from "@/lib/types";
+import { stripCompanionContext } from "@/lib/companion-context";
 
 interface ChatMessageProps {
   role: "user" | "assistant" | "system";
@@ -24,6 +25,7 @@ export function ChatMessage({
   isStreaming,
 }: ChatMessageProps) {
   const isAssistant = role === "assistant";
+  const displayContent = role === "user" ? stripCompanionContext(content) : content;
 
   // Merge legacy images into attachments for unified rendering
   const allAttachments: Attachment[] = [
@@ -94,14 +96,14 @@ export function ChatMessage({
         {/* Text content with markdown + KaTeX rendering */}
         {isAssistant ? (
           <div className="break-words">
-            <ChatRichText content={content} />
+            <ChatRichText content={displayContent} />
             {isStreaming && (
               <span className="inline-block w-1.5 h-4 ml-0.5 bg-primary/60 animate-pulse rounded-sm" />
             )}
           </div>
         ) : (
           <div className="whitespace-pre-wrap break-words">
-            {content}
+            {displayContent}
           </div>
         )}
       </div>
