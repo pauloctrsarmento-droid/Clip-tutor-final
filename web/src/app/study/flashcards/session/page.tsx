@@ -10,6 +10,8 @@ import { FlashcardSummary } from "@/components/flashcards/flashcard-summary";
 import { Skeleton } from "@/components/ui/skeleton";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
+import { CompanionPanel, type CompanionPanelHandle } from "@/components/companion/companion-panel";
+import type { CompanionContext } from "@/lib/companion-context";
 
 interface Card {
   fact_id: string;
@@ -44,6 +46,7 @@ function FlashcardSessionInner() {
   const [answering, setAnswering] = useState(false);
   const [stats, setStats] = useState<SessionStats>({ correct: 0, incorrect: 0 });
   const [lastMastery, setLastMastery] = useState<{ from: number; to: number } | null>(null);
+  const [lastResult, setLastResult] = useState<"know" | "partial" | "dunno" | null>(null);
   const [summaryData, setSummaryData] = useState<{
     total_cards: number;
     correct: number;
@@ -54,6 +57,33 @@ function FlashcardSessionInner() {
   const explainPromise = useRef<Promise<{ explanation: string }> | null>(null);
 
   const meta = getSubjectMeta(subjectCode);
+
+  const companionContextRef = useRef<CompanionContext>({
+    mode: "flashcard",
+    topic: null,
+    question: "",
+    diagramUrls: [],
+    studentAttempt: null,
+    expectedAnswer: null,
+    markScheme: null,
+    overallFeedback: null,
+  });
+  const companionRef = useRef<CompanionPanelHandle>(null);
+
+  useEffect(() => {
+    const card = cards[currentIndex];
+    if (!card) return;
+    companionContextRef.current = {
+      mode: "flashcard",
+      topic: card.topic_name ?? null,
+      question: card.question ?? card.flashcard_front ?? card.fact_text ?? "",
+      diagramUrls: [],
+      studentAttempt: lastResult,
+      expectedAnswer: flipped ? explanation : null,
+      markScheme: null,
+      overallFeedback: null,
+    };
+  }, [cards, currentIndex, flipped, explanation, lastResult]);
 
   // Start session
   useEffect(() => {
@@ -96,6 +126,7 @@ function FlashcardSessionInner() {
       if (!card) return;
 
       setAnswering(true);
+      setLastResult(result);
       const prevMastery = card.mastery_score ?? 0;
 
       try {
@@ -118,9 +149,11 @@ function FlashcardSessionInner() {
         if (currentIndex < cards.length - 1) {
           setFlipped(false);
           setExplanation(null);
+          setLastResult(null);
           setCurrentIndex((i) => i + 1);
         } else {
           const summary = await endFlashcards(sessionId);
+          companionRef.current?.cleanup();
           setSummaryData(summary);
           setPhase("summary");
         }
@@ -154,7 +187,10 @@ function FlashcardSessionInner() {
         correct={summaryData?.correct ?? stats.correct}
         incorrect={summaryData?.incorrect ?? stats.incorrect}
         durationSeconds={summaryData?.duration_seconds ?? 0}
-        onBack={() => router.push("/study/flashcards")}
+        onBack={() => {
+          companionRef.current?.cleanup();
+          router.push("/study/flashcards");
+        }}
         onRestart={() => {
           setPhase("loading");
           setCurrentIndex(0);
@@ -177,77 +213,90 @@ function FlashcardSessionInner() {
   const progress = cards.length > 0 ? ((currentIndex + 1) / cards.length) * 100 : 0;
 
   return (
-    <div className="max-w-2xl mx-auto space-y-6">
-      {/* Progress bar */}
-      <div className="flex items-center gap-3">
-        <div className="flex-1 h-1.5 rounded-full bg-muted overflow-hidden">
-          <motion.div
-            className="h-full rounded-full bg-primary"
-            animate={{ width: `${progress}%` }}
-            transition={{ duration: 0.5, ease: "easeOut" }}
-          />
-        </div>
-        <span className="text-xs text-muted-foreground tabular-nums shrink-0">
-          {currentIndex + 1} / {cards.length}
-        </span>
-      </div>
-
-      {/* Topic label */}
-      <div className="flex items-center gap-2">
-        <div
-          className={cn("w-2 h-2 rounded-full", meta.accent.replace("text-", "bg-"))}
-        />
-        <span className="text-xs text-muted-foreground">{card?.topic_name}</span>
-      </div>
-
-      {/* Card */}
-      <AnimatePresence mode="wait">
-        <motion.div
-          key={currentIndex}
-          initial={{ opacity: 0, x: 40 }}
-          animate={{ opacity: 1, x: 0 }}
-          exit={{ opacity: 0, x: -40 }}
-          transition={{ duration: 0.25 }}
-        >
-          <FlashcardCard
-            front={card?.question ?? card?.flashcard_front ?? card?.fact_text ?? ""}
-            explanation={explanation}
-            flipped={flipped}
-            loading={explainLoading && flipped}
-            accentClass={meta.accent.replace("text-", "")}
-            onFlip={handleFlip}
-          />
-        </motion.div>
-      </AnimatePresence>
-
-      {/* Mastery update indicator */}
-      <AnimatePresence>
-        {lastMastery && (
-          <motion.div
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0 }}
-            className="text-center text-sm text-muted-foreground"
-          >
-            Mastery:{" "}
-            <span className="text-foreground tabular-nums">{lastMastery.from}%</span>
-            {" → "}
-            <span
-              className={cn(
-                "font-semibold tabular-nums",
-                lastMastery.to > lastMastery.from ? "text-emerald-400" : "text-red-400"
-              )}
-            >
-              {lastMastery.to}%
+    <div className="flex h-[calc(100vh-80px)] -my-5 -mx-8">
+      <div className="flex-[6] overflow-y-auto px-8 py-6">
+        <div className="max-w-2xl mx-auto space-y-6">
+          {/* Progress bar */}
+          <div className="flex items-center gap-3">
+            <div className="flex-1 h-1.5 rounded-full bg-muted overflow-hidden">
+              <motion.div
+                className="h-full rounded-full bg-primary"
+                animate={{ width: `${progress}%` }}
+                transition={{ duration: 0.5, ease: "easeOut" }}
+              />
+            </div>
+            <span className="text-xs text-muted-foreground tabular-nums shrink-0">
+              {currentIndex + 1} / {cards.length}
             </span>
-          </motion.div>
-        )}
-      </AnimatePresence>
+          </div>
 
-      {/* Buttons (only when flipped) */}
-      {flipped && !lastMastery && (
-        <FlashcardButtons onResult={handleResult} disabled={answering} />
-      )}
+          {/* Topic label */}
+          <div className="flex items-center gap-2">
+            <div
+              className={cn("w-2 h-2 rounded-full", meta.accent.replace("text-", "bg-"))}
+            />
+            <span className="text-xs text-muted-foreground">{card?.topic_name}</span>
+          </div>
+
+          {/* Card */}
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={currentIndex}
+              initial={{ opacity: 0, x: 40 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -40 }}
+              transition={{ duration: 0.25 }}
+            >
+              <FlashcardCard
+                front={card?.question ?? card?.flashcard_front ?? card?.fact_text ?? ""}
+                explanation={explanation}
+                flipped={flipped}
+                loading={explainLoading && flipped}
+                accentClass={meta.accent.replace("text-", "")}
+                onFlip={handleFlip}
+              />
+            </motion.div>
+          </AnimatePresence>
+
+          {/* Mastery update indicator */}
+          <AnimatePresence>
+            {lastMastery && (
+              <motion.div
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0 }}
+                className="text-center text-sm text-muted-foreground"
+              >
+                Mastery:{" "}
+                <span className="text-foreground tabular-nums">{lastMastery.from}%</span>
+                {" → "}
+                <span
+                  className={cn(
+                    "font-semibold tabular-nums",
+                    lastMastery.to > lastMastery.from ? "text-emerald-400" : "text-red-400"
+                  )}
+                >
+                  {lastMastery.to}%
+                </span>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* Buttons (only when flipped) */}
+          {flipped && !lastMastery && (
+            <FlashcardButtons onResult={handleResult} disabled={answering} />
+          )}
+        </div>
+      </div>
+      <div className="flex-[4] hidden md:flex border-l border-border/50 bg-card/30 flex-col">
+        <CompanionPanel
+          ref={companionRef}
+          parentSessionId={sessionId}
+          subjectCode={subjectCode}
+          topicId={topicId}
+          contextRef={companionContextRef}
+        />
+      </div>
     </div>
   );
 }

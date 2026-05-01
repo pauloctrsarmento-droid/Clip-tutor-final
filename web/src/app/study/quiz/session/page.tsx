@@ -12,6 +12,8 @@ import { QuizSummary } from "@/components/quiz/quiz-summary";
 import { hasTableWithBlanks } from "@/lib/parse-table-blanks";
 import { Skeleton } from "@/components/ui/skeleton";
 import { motion, AnimatePresence } from "framer-motion";
+import { CompanionPanel, type CompanionPanelHandle } from "@/components/companion/companion-panel";
+import type { CompanionContext } from "@/lib/companion-context";
 
 interface Question {
   id: string;
@@ -61,9 +63,43 @@ function QuizSessionInner() {
   const [marksAvailable, setMarksAvailable] = useState(0);
   const [summaryData, setSummaryData] = useState<Summary | null>(null);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const [lastUserAnswer, setLastUserAnswer] = useState<string | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const meta = getSubjectMeta(subjectCode);
+
+  const companionContextRef = useRef<CompanionContext>({
+    mode: "quiz",
+    topic: null,
+    question: "",
+    diagramUrls: [],
+    studentAttempt: null,
+    expectedAnswer: null,
+    markScheme: null,
+    overallFeedback: null,
+  });
+  const companionRef = useRef<CompanionPanelHandle>(null);
+
+  useEffect(() => {
+    const q = questions[currentIndex];
+    if (!q) return;
+    const inFeedback = phase === "feedback" && evaluation !== null;
+    companionContextRef.current = {
+      mode: "quiz",
+      topic: null,
+      question: q.question_text,
+      diagramUrls: q.diagram_urls ?? [],
+      studentAttempt: inFeedback ? lastUserAnswer : null,
+      expectedAnswer: null,
+      markScheme: inFeedback
+        ? evaluation!.mark_points.map((mp) => ({
+            description: mp.description,
+            awarded: mp.awarded,
+          }))
+        : null,
+      overallFeedback: inFeedback ? evaluation!.overall_feedback : null,
+    };
+  }, [questions, currentIndex, phase, evaluation, lastUserAnswer]);
 
   // Timer
   useEffect(() => {
@@ -93,6 +129,7 @@ function QuizSessionInner() {
 
       setEvaluating(true);
       setPhase("feedback");
+      setLastUserAnswer(answer);
 
       try {
         const result = await evaluateQuizAnswer({
@@ -125,6 +162,7 @@ function QuizSessionInner() {
     if (currentIndex < questions.length - 1) {
       setCurrentIndex((i) => i + 1);
       setEvaluation(null);
+      setLastUserAnswer(null);
       setPhase("answering");
     } else {
       // End quiz
@@ -142,6 +180,8 @@ function QuizSessionInner() {
           });
         }
       }
+      // Cleanup BEFORE setPhase("summary") — the panel unmounts after that.
+      companionRef.current?.cleanup();
       setPhase("summary");
       if (timerRef.current) clearInterval(timerRef.current);
     }
@@ -166,9 +206,15 @@ function QuizSessionInner() {
         questionsAttempted={s?.questions_attempted ?? questions.length}
         accuracy={s?.accuracy ?? (marksAvailable > 0 ? Math.round((marksEarned / marksAvailable) * 100) : 0)}
         durationSeconds={s?.duration_seconds ?? elapsedSeconds}
-        onBack={() => router.push("/study/quiz")}
+        onBack={() => {
+          companionRef.current?.cleanup();
+          router.push("/study/quiz");
+        }}
         onRetry={() => window.location.reload()}
-        onNew={() => router.push("/study/quiz")}
+        onNew={() => {
+          companionRef.current?.cleanup();
+          router.push("/study/quiz");
+        }}
       />
     );
   }
@@ -176,65 +222,78 @@ function QuizSessionInner() {
   const question = questions[currentIndex];
 
   return (
-    <div className="max-w-3xl mx-auto space-y-6">
-      {/* Progress */}
-      <QuizProgress
-        current={currentIndex + 1}
-        total={questions.length}
-        marksEarned={marksEarned}
-        marksAvailable={marksAvailable}
-        elapsedSeconds={elapsedSeconds}
-        subjectName={subjectCode}
-        accentClass={meta.accent}
-      />
+    <div className="flex h-[calc(100vh-80px)] -my-5 -mx-8">
+      <div className="flex-[6] overflow-y-auto px-8 py-6">
+        <div className="max-w-3xl mx-auto space-y-6">
+          {/* Progress */}
+          <QuizProgress
+            current={currentIndex + 1}
+            total={questions.length}
+            marksEarned={marksEarned}
+            marksAvailable={marksAvailable}
+            elapsedSeconds={elapsedSeconds}
+            subjectName={subjectCode}
+            accentClass={meta.accent}
+          />
 
-      {/* Question */}
-      <AnimatePresence mode="wait">
-        <motion.div
-          key={currentIndex}
-          initial={{ opacity: 0, x: 30 }}
-          animate={{ opacity: 1, x: 0 }}
-          exit={{ opacity: 0, x: -30 }}
-          transition={{ duration: 0.2 }}
-        >
-          <div className="bg-card border border-border rounded-2xl p-6 space-y-6">
-            <QuizQuestion
-              questionText={question.question_text}
-              marks={question.marks}
-              parentContext={question.parent_context}
-              diagramUrls={question.diagram_urls}
-              hideTable={hasTableWithBlanks(question.question_text)}
+          {/* Question */}
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={currentIndex}
+              initial={{ opacity: 0, x: 30 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -30 }}
+              transition={{ duration: 0.2 }}
+            >
+              <div className="bg-card border border-border rounded-2xl p-6 space-y-6">
+                <QuizQuestion
+                  questionText={question.question_text}
+                  marks={question.marks}
+                  parentContext={question.parent_context}
+                  diagramUrls={question.diagram_urls}
+                  hideTable={hasTableWithBlanks(question.question_text)}
+                />
+
+                {/* Answer input (hidden during feedback) */}
+                {phase === "answering" && (
+                  <QuizAnswerInput
+                    responseType={question.response_type}
+                    options={question.options}
+                    questionText={question.question_text}
+                    onSubmit={handleSubmit}
+                    submitting={evaluating}
+                    disabled={false}
+                    accentClass={meta.accent}
+                  />
+                )}
+              </div>
+            </motion.div>
+          </AnimatePresence>
+
+          {/* Feedback */}
+          {(phase === "feedback" || evaluating) && (
+            <QuizFeedback
+              loading={evaluating}
+              marksAwarded={evaluation?.marks_awarded ?? 0}
+              marksAvailable={evaluation?.marks_available ?? question.marks}
+              markPoints={evaluation?.mark_points ?? []}
+              overallFeedback={evaluation?.overall_feedback ?? ""}
+              examTip={evaluation?.exam_tip ?? ""}
+              conceptCheck={evaluation?.concept_check ?? null}
+              onNext={handleNext}
             />
-
-            {/* Answer input (hidden during feedback) */}
-            {phase === "answering" && (
-              <QuizAnswerInput
-                responseType={question.response_type}
-                options={question.options}
-                questionText={question.question_text}
-                onSubmit={handleSubmit}
-                submitting={evaluating}
-                disabled={false}
-                accentClass={meta.accent}
-              />
-            )}
-          </div>
-        </motion.div>
-      </AnimatePresence>
-
-      {/* Feedback */}
-      {(phase === "feedback" || evaluating) && (
-        <QuizFeedback
-          loading={evaluating}
-          marksAwarded={evaluation?.marks_awarded ?? 0}
-          marksAvailable={evaluation?.marks_available ?? question.marks}
-          markPoints={evaluation?.mark_points ?? []}
-          overallFeedback={evaluation?.overall_feedback ?? ""}
-          examTip={evaluation?.exam_tip ?? ""}
-          conceptCheck={evaluation?.concept_check ?? null}
-          onNext={handleNext}
+          )}
+        </div>
+      </div>
+      <div className="flex-[4] hidden md:flex border-l border-border/50 bg-card/30 flex-col">
+        <CompanionPanel
+          ref={companionRef}
+          parentSessionId={sessionId}
+          subjectCode={subjectCode}
+          topicId={topicId}
+          contextRef={companionContextRef}
         />
-      )}
+      </div>
     </div>
   );
 }
