@@ -45,7 +45,8 @@ export interface SessionStartResult {
 export interface FreeStudyOptions {
   subjectCode?: string;
   topicId?: string;
-  mode?: "tutor" | "review";
+  mode?: "tutor" | "review" | "companion";
+  parentSessionId?: string;
 }
 
 export async function startSession(
@@ -53,6 +54,49 @@ export async function startSession(
   studentId: string,
   options?: FreeStudyOptions,
 ): Promise<SessionStartResult> {
+  // ── Companion mode: dedicated path. Skip plan + chat_tutor prompt fetch. ──
+  if (options?.mode === "companion") {
+    const studentRes = await supabaseAdmin
+      .from("students")
+      .select("name")
+      .eq("id", studentId)
+      .single();
+    const studentName =
+      ((studentRes.data?.name as string) ?? "").split(" ")[0] || "there";
+    const greeting = `Hi ${studentName}! I'm here. Show me what you're stuck on — I'll guide you, never give the answer.`;
+
+    const { data: companionSession, error: companionError } = await supabaseAdmin
+      .from("study_sessions")
+      .insert({
+        student_id: studentId,
+        session_type: "study_companion",
+        mood,
+        status: "active",
+        current_block_index: 0,
+        block_phase: "explanation",
+        subject_code: options.subjectCode ?? null,
+        syllabus_topic_id: options.topicId ?? null,
+        parent_session_id: options.parentSessionId ?? null,
+      })
+      .select()
+      .single();
+
+    if (companionError) throw companionError;
+
+    await supabaseAdmin.from("chat_messages").insert({
+      session_id: companionSession.id as string,
+      role: "assistant",
+      content: greeting,
+    });
+
+    return {
+      session_id: companionSession.id as string,
+      blocks: [],
+      tutor_greeting: greeting,
+    };
+  }
+  // ── End companion mode ──
+
   const isFreeStudy = !!options?.subjectCode;
 
   // Fetch student profile + prompt in parallel; skip plan if free study
@@ -183,6 +227,7 @@ export async function sendMessage(
   const session = sessionRes.data;
   if (!session) throw new Error("Session not found");
   const allMessages = (messagesRes.data ?? []) as ChatMessage[];
+  const sessionType = (session.session_type as string) ?? "chat_tutor";
 
   const systemPrompt = await buildSystemPrompt(session, allMessages, studentId);
 
@@ -276,6 +321,23 @@ export async function sendMessage(
       }
 
       // Phase 2: Detect intent + generate diagrams (server-side, reliable)
+      // Companion sessions skip the entire post-stream pipeline:
+      // no detectAction (no plan fetch), no actions, no progressiveSummarize,
+      // no saveMemory — prevents leaking mark scheme into tutor_memory.
+      if (sessionType === "study_companion") {
+        try {
+          await supabaseAdmin.from("chat_messages").insert({
+            session_id: sessionId,
+            role: "assistant",
+            content: fullResponse,
+          });
+        } catch (err) {
+          console.error("[sendMessage:companion] save error:", err);
+        }
+        controller.close();
+        return;
+      }
+
       try {
         const currentBlockIndex = (session.current_block_index as number) ?? 0;
         const planData = await getTodayPlan(studentId);
@@ -635,6 +697,15 @@ export async function endSession(
 
   if (!session) throw new Error("Session not found");
 
+  // Companion sessions never persist to tutor_memory — would leak mark scheme.
+  if ((session.session_type as string) === "study_companion") {
+    await supabaseAdmin
+      .from("study_sessions")
+      .update({ status: reason, ended_at: new Date().toISOString() })
+      .eq("id", sessionId);
+    return { blocks_completed: 0, blocks_total: 0 };
+  }
+
   // Generate final block memory if mid-block
   const { data: recentMessages } = await supabaseAdmin
     .from("chat_messages")
@@ -728,11 +799,19 @@ async function buildSystemPrompt(
   studentId: string,
 ): Promise<string> {
   const subjectCode = (session.subject_code as string) ?? "0620";
+  const sessionType = (session.session_type as string) ?? "chat_tutor";
+  const sessionTopicId = (session.syllabus_topic_id as string) ?? null;
+
+  // ── Companion path: minimal prompt, no plan, no memories, no nudges ──
+  if (sessionType === "study_companion") {
+    return await buildCompanionSystemPrompt({ subjectCode, sessionTopicId, studentId });
+  }
+  // ── End companion path ──
+
   const mood = (session.mood as string) ?? "normal";
   const runningSummary = (session.running_summary as string) ?? "";
   const blockPhase = (session.block_phase as string) ?? "intro";
   const currentBlockIndex = (session.current_block_index as number) ?? 0;
-  const sessionTopicId = (session.syllabus_topic_id as string) ?? null;
 
   // Facts query: topic-scoped when the session has a pinned topic, else subject-wide.
   const factsQuery = sessionTopicId
@@ -1330,6 +1409,48 @@ const SUBJECT_DISPLAY_NAMES: Record<string, string> = {
   "0478": "Computer Science", "0520": "French", "0504": "Portuguese",
   "0500": "English Language", "0475": "English Literature",
 };
+
+// ── Companion System Prompt Builder ─────────────────────────
+async function buildCompanionSystemPrompt(params: {
+  subjectCode: string;
+  sessionTopicId: string | null;
+  studentId: string;
+}): Promise<string> {
+  const { subjectCode, sessionTopicId, studentId } = params;
+
+  const factsQuery = sessionTopicId
+    ? supabaseAdmin
+        .from("atomic_facts")
+        .select("fact_text")
+        .eq("syllabus_topic_id", sessionTopicId)
+        .limit(30)
+    : supabaseAdmin
+        .from("atomic_facts")
+        .select("fact_text")
+        .eq("subject_code", subjectCode)
+        .limit(20);
+
+  const [promptTemplate, studentRes, factsRes] = await Promise.all([
+    getPrompt("chat_tutor_companion"),
+    supabaseAdmin.from("students").select("name").eq("id", studentId).single(),
+    factsQuery,
+  ]);
+
+  const studentName =
+    ((studentRes.data?.name as string) ?? "").split(" ")[0] || "there";
+  const languageName = SUBJECT_LANGUAGE[subjectCode] ?? "English";
+  const subjectName = SUBJECT_DISPLAY_NAMES[subjectCode] ?? subjectCode;
+  const factsText = (factsRes.data ?? [])
+    .map((f) => `- ${f.fact_text as string}`)
+    .join("\n");
+
+  return promptTemplate
+    .replace(/\{\{student_name\}\}/g, studentName)
+    .replace(/\{\{subject_name\}\}/g, subjectName)
+    .replace(/\{\{language_name\}\}/g, languageName)
+    .replace(/\{\{relevant_facts\}\}/g, factsText || "No specific facts loaded.");
+}
+// ── End companion builder ──
 
 function buildFreeStudyContextGreeting(
   name: string,

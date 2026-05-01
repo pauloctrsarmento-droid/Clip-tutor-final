@@ -56,7 +56,7 @@ export interface ExamQuestion {
 // Study Sessions
 // ============================================================
 
-export type SessionType = "flashcard" | "quiz" | "review" | "chat_tutor";
+export type SessionType = "flashcard" | "quiz" | "review" | "chat_tutor" | "study_companion";
 
 export type BlockPhase = "intro" | "explanation" | "quiz" | "transition";
 
@@ -78,6 +78,7 @@ export interface StudySession {
   block_phase: BlockPhase;
   embedded_session_id: string | null;
   status: SessionStatus;
+  parent_session_id?: string | null;
 }
 
 // ============================================================
