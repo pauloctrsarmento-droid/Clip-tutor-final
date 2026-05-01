@@ -7,7 +7,8 @@ const schema = z.object({
   mood: z.enum(["unmotivated", "normal", "good", "motivated"]),
   subject_code: z.string().optional(),
   topic_id: z.string().uuid().optional(),
-  mode: z.enum(["tutor", "review"]).optional(),
+  mode: z.enum(["tutor", "review", "companion"]).optional(),
+  parent_session_id: z.string().uuid().optional(),
 });
 
 export async function POST(request: Request) {
@@ -19,6 +20,7 @@ export async function POST(request: Request) {
       subjectCode: input.subject_code,
       topicId: input.topic_id,
       mode: input.mode,
+      parentSessionId: input.parent_session_id,
     });
     return Response.json(result);
   } catch (error) {

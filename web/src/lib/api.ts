@@ -650,7 +650,12 @@ export async function fetchSubjectMasteryDrillDown(subjectCode: string) {
 
 export async function startChatSession(
   mood: string,
-  options?: { subject_code?: string; topic_id?: string; mode?: "tutor" | "review" },
+  options?: {
+    subject_code?: string;
+    topic_id?: string;
+    mode?: "tutor" | "review" | "companion";
+    parent_session_id?: string;
+  },
 ) {
   const res = await fetch(`${BASE}/api/session/start`, {
     method: "POST",
