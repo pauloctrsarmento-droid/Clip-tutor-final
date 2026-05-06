@@ -103,23 +103,31 @@ def main() -> None:
 
     # ── Stage 1: dedupe + insert new atomic_facts ──
     new_facts_to_create: dict[str, dict] = {}  # id -> row
+    duplicate_count = 0
     for p in proposals:
         for nf in (p.get("new_facts_approved") or []):
             proposed_id = nf["proposed_id"]
             # Dedupe: if Sonnet/Opus suggested the same id twice across proposals, keep first.
-            if proposed_id in fact_ids or proposed_id in new_facts_to_create:
+            if proposed_id in fact_ids:
+                duplicate_count += 1
+                continue
+            if proposed_id in new_facts_to_create:
+                duplicate_count += 1
                 continue
             new_facts_to_create[proposed_id] = {
                 "id": proposed_id,
                 "subject_code": p["subject_code"],
                 "syllabus_topic_id": p["syllabus_topic_id"],
-                "topic_id": proposed_id.rsplit("_F", 1)[0] if "_F" in proposed_id else None,
+                "topic_id": None,  # generated facts don't fit existing subtopic taxonomy; syllabus_topic_id is the canonical link
                 "fact_text": nf["fact_text"],
                 "flashcard_front": nf.get("flashcard_front"),
                 "core_or_extended": "core",
                 "difficulty": 3,
                 "is_active": True,
             }
+
+    if duplicate_count:
+        print(f"  skipped {duplicate_count} duplicate proposed_ids (already exist or proposed earlier in run)", file=sys.stderr)
 
     if new_facts_to_create:
         print(f"  inserting {len(new_facts_to_create)} new atomic_facts ...", file=sys.stderr)
@@ -141,19 +149,20 @@ def main() -> None:
             failed += 1
             continue
 
-        # SQL-quote-safe JSON via Python json.dumps, escaped for SQL string literal.
-        rf = json.dumps(all_ids).replace("'", "''")
+        # Dollar-quoting: impossible to escape from regardless of content.
+        # question_id/proposal_id are UUID text ([0-9a-f-]) — single-quote interp is safe for these.
+        rf = json.dumps(all_ids)
         audit = json.dumps({
             "matcher_model": p["matcher_model"],
             "reviewer_model": p["reviewer_model"],
             "agreement_signal": p["agreement_signal"],
             "applied_at": "now",
-        }).replace("'", "''")
+        })
 
         sql = f"""
             UPDATE assessment_items
-            SET related_facts = '{rf}'::jsonb,
-                linkage_audit = '{audit}'::jsonb
+            SET related_facts = $rf${rf}$rf$::jsonb,
+                linkage_audit = $audit${audit}$audit$::jsonb
             WHERE id = '{p["question_id"]}';
 
             UPDATE linkage_proposals
