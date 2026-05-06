@@ -22,6 +22,9 @@ for line in (ROOT / "web" / ".env.local").read_text().splitlines():
     elif line.startswith("SUPABASE_ACCESS_TOKEN="):
         ACCESS_TOKEN = line.split("=", 1)[1].strip()
 
+if not SERVICE_KEY or not ACCESS_TOKEN:
+    sys.exit("FATAL: SUPABASE_SERVICE_ROLE_KEY / SUPABASE_ACCESS_TOKEN not found in web/.env.local")
+
 REST_HEADERS = {
     "apikey": SERVICE_KEY,
     "Authorization": f"Bearer {SERVICE_KEY}",
@@ -105,7 +108,7 @@ def insert_pending(rows: list[dict]) -> None:
             headers=REST_HEADERS,
         )
         with urllib.request.urlopen(req, timeout=120) as resp:
-            if resp.status not in (200, 201):
+            if resp.status >= 300:
                 raise RuntimeError(f"Insert failed: {resp.status} {resp.read()!r}")
         print(f"  inserted batch {i // BATCH + 1} ({len(batch)} rows)", file=sys.stderr)
 
