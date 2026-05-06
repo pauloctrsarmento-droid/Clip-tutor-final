@@ -2,8 +2,10 @@
 
 **Date:** 2026-05-06
 **Author:** Paulo (with Claude Opus 4.7)
-**Status:** v2 — incorporates code-reviewer feedback (C1–C7, S1, S2, S6, S9)
-**Reviewers:** Opus 4.7 forensic review run 2026-05-06; verdict downgraded from "ship" to "hold" pending these edits, then re-approved.
+**Status:** v3 — incorporates two rounds of forensic review feedback
+**Reviewers:** Two independent Opus 4.7 forensic reviews on 2026-05-06.
+- Round 1 found C1–C7 + S1, S2, S6, S7, S9. All addressed in v2.
+- Round 2 verified all v1 fixes were correctly applied AND found 2 new criticals + 3 should-fix issues, addressed in this v3.
 
 ## Problem
 
@@ -111,7 +113,10 @@ COMMENT ON COLUMN assessment_items.linkage_audit IS
 -- linkage_proposals: full audit trail of the AI pipeline (S2 — expanded fields for resumability + audit)
 CREATE TABLE linkage_proposals (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  question_id UUID NOT NULL REFERENCES assessment_items(id) ON DELETE CASCADE,
+  -- ON DELETE RESTRICT (v3 issue #5) — preserve audit history even if a
+  -- question is later removed from assessment_items. R7 promises queryable
+  -- forever; CASCADE would silently destroy history.
+  question_id UUID NOT NULL REFERENCES assessment_items(id) ON DELETE RESTRICT,
   chunk_id TEXT NOT NULL,                -- orchestrator's grouping key (e.g. 'CHEM_T11_chunk_03')
   matcher_model TEXT NOT NULL,           -- exact version string e.g. 'claude-sonnet-4-6'
   reviewer_model TEXT,                   -- e.g. 'claude-opus-4-7'
@@ -123,6 +128,9 @@ CREATE TABLE linkage_proposals (
   opus_raw_response TEXT,
   error_message TEXT,                    -- when status indicates failure
   retry_count INTEGER NOT NULL DEFAULT 0,
+  -- Per-question reviewer trust signal (v3 issue #4 — was missing column,
+  -- spec referenced it without persistence path). Used by Gate K rollup.
+  agreement_signal TEXT CHECK (agreement_signal IN ('high', 'medium', 'low')),
   status TEXT NOT NULL CHECK (status IN (
     'pending',           -- chunk dispatched to Sonnet, no response yet
     'sonnet_done',       -- Sonnet returned valid JSON
@@ -218,15 +226,27 @@ CREATE TRIGGER atomic_facts_protect_referenced
   BEFORE UPDATE OF is_active ON atomic_facts
   FOR EACH ROW EXECUTE FUNCTION protect_referenced_atomic_facts();
 
--- ── Defense 3: NOT NULL + CHECK array-shape ──
--- The shape check is intentionally belt-and-braces: jsonb_array_length raises on
--- non-arrays, but the typeof check produces a friendlier constraint-violation
--- message. Do NOT simplify.
+-- ── Defense 3: NOT NULL + CHECK array-shape AND element-type ──
+-- The shape check is intentionally belt-and-braces:
+--   • jsonb_typeof = 'array'    → friendly error if someone passes a scalar/object
+--   • jsonb_array_length >= 1   → forbid empty arrays
+--   • element-type check (v3 issue #2) → every element MUST be a JSONB string,
+--     not an object like {"fact_id":"X","score":0.5}. Without this, an object
+--     element would slip through the trigger by accident: jsonb_array_elements_text
+--     stringifies the whole object, the LEFT JOIN never matches, and the trigger
+--     raises with a confusing "unknown atomic_fact" message instead of a clear
+--     shape violation. Better to reject the wrong shape upfront.
+-- Do NOT simplify.
 ALTER TABLE assessment_items
   ALTER COLUMN related_facts SET NOT NULL,
   ADD CONSTRAINT related_facts_non_empty CHECK (
     jsonb_typeof(related_facts) = 'array'
     AND jsonb_array_length(related_facts) >= 1
+    AND NOT EXISTS (
+      SELECT 1
+      FROM jsonb_array_elements(related_facts) AS elem
+      WHERE jsonb_typeof(elem) <> 'string'
+    )
   );
 ```
 
@@ -248,13 +268,46 @@ Files currently modified locally (git status verified at spec time):
   + untracked: web/src/components/quiz/diagram-renderer.tsx
               web/src/components/quiz/diagrams/*.tsx
 
-Wave 0 action:
-  git add <those files only>
+Wave 0 action — local-only WIP commit (NOT pushed):
+  git add web/src/lib/services/orchestrators/quiz.ts \
+          web/src/components/quiz/quiz-question.tsx \
+          web/src/app/study/quiz/session/page.tsx \
+          web/src/components/quiz/diagram-renderer.tsx \
+          web/src/components/quiz/diagrams/
   git commit -m "wip(quiz): V1 cutover staging for fact-linkage pipeline"
-  (Do NOT push. Local commit only — preserves work across crashes.)
-  At Wave 6, this WIP commit is amended into the proper cutover commit
-  (or git reset --soft HEAD~1 → re-commit with final message).
+
+  (Do NOT push. Local commit only — preserves work across orchestrator crashes.)
 ```
+
+`web/src/lib/constants.ts` (the `QUIZ_DISABLED_SUBJECTS` edit, see §Code changes) is **not** included here — it is edited at Wave 6a after backfill so the constant flips at the same instant as the orchestrator change reaches origin.
+
+### Wave 6 — Git workflow (v3 issue #1 — explicit step ordering)
+
+The reset-and-amend strategy in v2 was ambiguous about when post-WIP edits happen. Strict order:
+
+```
+Wave 6a (fold WIP + apply post-backfill edits + push):
+  1. Edit web/src/lib/services/orchestrators/quiz.ts per §Code changes:
+       • Add `related_facts` to the SELECT in fetchApprovedItems
+       • Remove the `related_facts: null` hack in evaluateAnswer
+  2. Edit web/src/lib/constants.ts:
+       • Remove "0500" from QUIZ_DISABLED_SUBJECTS
+  3. Edit scripts/insert-batch-v2.py per §Code changes (validator).
+  4. pnpm --dir web tsc --noEmit       # Gate D
+  5. pnpm --dir web build              # Gate D
+  6. git reset --soft HEAD~1           # fold the Wave-0 WIP commit into staging
+                                       # (post-step-1/2/3 edits also remain staged)
+  7. git status                        # sanity: all intended files staged, nothing else
+  8. git commit -m "feat(quiz): V1 cutover with atomic-fact linkage"
+  9. git push origin master            # triggers Vercel auto-deploy
+
+Wave 6b (after Vercel deploy READY):
+  10. Run Gate E (deterministic Playwright smoke).
+  11. If Gate E passes: Wave 6 complete; record audit JSON + memory update.
+  12. If Gate E fails: rollback per §Rollback (git revert HEAD && push).
+```
+
+The reset+commit collapses the Wave-0 WIP and the post-backfill edits into a single coherent feature commit. `origin/master` only ever sees one cutover commit, never the WIP.
 
 ### Sonnet retry policy (C7)
 
@@ -266,6 +319,13 @@ If Sonnet's response for a chunk fails JSON validation against the schema in §S
 
 Same policy mirrored for Opus:
 - 1 retry on parse failure → otherwise `status='opus_failed'`, surface in Wave 5.
+
+### Rate-limit backoff (v3 issue #7)
+
+Anthropic Max plan has per-minute and per-day token limits. Sub-agent calls returning HTTP 429 (rate limited) or 529 (overloaded) are NOT JSON-parse failures and must not consume the retry budget above. Separate policy:
+
+- 429 / 529 → exponential backoff: sleep 30s, 60s, 120s. Up to 3 backoff retries.
+- After the 3rd backoff failure, mark `status='sonnet_failed'` (or `opus_failed`) with `error_message='rate_limit_exhausted'` and surface in Wave 5 — orchestrator decides: pause the pipeline (resumable, see §Resumability), or escalate.
 
 ### Resumability protocol (S1)
 
@@ -318,7 +378,19 @@ SELECT * FROM flagged;
 
 If `flagged` returns any rows → **Gate K fails**. Pipeline halts. Orchestrator inspects sample chunks, identifies the systemic issue, and decides: re-run those chunks with a tweaked prompt, or escalate to user.
 
-Additionally, the per-question `agreement_signal='low'` flag from Opus (see Opus prompt) is rolled up — if >5% of all questions have `low` agreement, also halt.
+Additionally, the per-question `agreement_signal` column on `linkage_proposals` (populated by the Opus reviewer per the Opus prompt schema) is rolled up:
+
+```sql
+-- Gate K rollup #2: low-agreement rate across all reviewed questions
+SELECT
+  count(*) FILTER (WHERE agreement_signal = 'low')::float
+    / count(*) AS low_rate
+FROM linkage_proposals
+WHERE status IN ('reviewed', 'applied')
+  AND agreement_signal IS NOT NULL;
+```
+
+If `low_rate > 0.05` → also halt Gate K. Both rollups must pass before Migration 2 runs.
 
 ### Wave 4 race safety (C5)
 
@@ -423,7 +495,7 @@ STRICT RULES:
 - Use "necessary to answer correctly" as the bar — not "related".
 - Output ONLY JSON (single object). No prose. No wrapping array.
 
-Field names `approved_facts` and `new_facts_approved` match the `linkage_proposals` columns for verbatim persistence.
+Field names `approved_facts`, `new_facts_approved`, and `agreement_signal` match the `linkage_proposals` columns for verbatim persistence (the orchestrator stores each into the corresponding column when applying).
 ```
 
 ## Code changes
@@ -532,28 +604,35 @@ Strict ordering inside Wave 5: **Gate A → Gate K → apply Migration 2 → Gat
 | D | Wave 6 (build) | `pnpm tsc --noEmit` shows no new errors in our code; `pnpm build` succeeds |
 | E | Wave 6 (live) | Deterministic Playwright E2E (see below) |
 
-### Gate E — deterministic E2E (S6)
+### Gate E — deterministic E2E (S6, v3 issue #3)
 
-The original "fresh rows in last 5 min" criterion gives false positives if quiz answers happen to hit only already-mastered facts (no INSERT, only UPDATE that may not change `last_seen` precisely). Replaced with deterministic steps:
+The original "fresh rows in last 5 min" criterion gives false positives if quiz answers happen to hit only already-mastered facts. Replaced with deterministic steps. **No admin route is created** — instead, the test scopes the quiz session tightly enough that Q_TEST is the only candidate.
 
 ```
-Pre-test setup (run via Supabase SQL):
-  1. Identify ONE specific known V1 question with known related_facts:
-     SELECT id, related_facts FROM assessment_items
-     WHERE subject_code='0610' AND status='approved'
-       AND jsonb_array_length(related_facts) >= 1
-     ORDER BY id LIMIT 1;
-     → call this Q_TEST, with linked_facts F_TEST = [...]
-  2. DELETE FROM student_fact_mastery
-     WHERE student_id=<luisa_id> AND fact_id = ANY(F_TEST);
-     → guarantees clean slate for those facts.
+Pre-test setup (run via Supabase Management API SQL):
+  1. Pick a Bio topic with EXACTLY ONE approved V1 question. If none exists
+     with exactly one, scope further by question_type to a single match.
+     If still no single-result topic, create the temporary scoping by
+     filtering to (subject_code, syllabus_topic_id, response_type, difficulty)
+     until COUNT(*) = 1. Call the resulting question Q_TEST and its
+     related_facts F_TEST.
+
+  2. Clear exposure and mastery for Luísa for that one question's facts:
+     DELETE FROM question_exposure
+       WHERE student_id=<luisa_id> AND question_id=Q_TEST AND mode='quiz';
+     DELETE FROM student_fact_mastery
+       WHERE student_id=<luisa_id> AND fact_id = ANY(F_TEST);
 
 Playwright test:
   3. Open https://web-blue-mu-83.vercel.app
   4. Login as Luísa (PIN)
-  5. Navigate to a quiz session that will surface Q_TEST
-     (or use an admin route that opens a session with a specific question_id).
-  6. Submit the correct answer. Wait for evaluation feedback to render.
+  5. /study/quiz → choose Biology → choose the topic AND filters that scoped
+     Q_TEST to the only candidate → count=1 → Start.
+     Because pool size is 1 and Luísa has no exposure for it, fetchApprovedItems
+     deterministically returns Q_TEST (per quiz.ts:117-123 shuffle of a
+     single-element pool).
+  6. Submit the correct answer (looked up from assessment_items.correct_answer
+     in pre-setup). Wait for evaluation feedback to render.
 
 Post-test SQL assert:
   7. SELECT fact_id, mastery_score, times_tested, last_seen
@@ -561,12 +640,20 @@ Post-test SQL assert:
      WHERE student_id=<luisa_id> AND fact_id = ANY(F_TEST);
      → MUST return one row per F_TEST entry, each with times_tested = 1 AND
        mastery_score > 0 AND last_seen ≥ test_start_time.
-  8. Repeat with EngLang question (different subject path) — same assertions.
-  9. Negative case: open quiz for French — UI must show "Quiz unavailable"
-     and NO new student_fact_mastery rows for that subject's facts.
-  10. Chat tutor positive case: start a Bio chat session, prompt "quiz me on
-      photosynthesis", confirm tutor emits launch_quiz, frontend opens quiz,
-      answer it, re-run the SQL assert.
+
+  8. Repeat steps 1-7 with an EngLang question (different subject path) — same
+     deterministic scoping, same assertions.
+
+  9. Negative case: open /study/quiz → French — UI must show "Quiz unavailable"
+     for French (per QUIZ_DISABLED_SUBJECTS). No DB rows created.
+
+  10. Chat tutor positive case: start a Bio chat tutor session, prompt
+      "quiz me on photosynthesis", confirm tutor emits launch_quiz, frontend
+      opens quiz, answer the question that surfaces, re-run the post-test
+      SQL assert (step 7) for whatever facts are linked to that question.
+      (Determinism is harder here because chat-tutor passes count=6 by
+      default; an updated mastery row for ANY of the surfaced question's
+      linked facts is sufficient to confirm the path works.)
 ```
 
 Any failure of step 7, 8, 9, or 10 → halt cutover, rollback (see §Rollback).
