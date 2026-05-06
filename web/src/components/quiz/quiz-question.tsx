@@ -3,6 +3,7 @@
 import { useMemo } from "react";
 import { RichText } from "@/components/rich-text";
 import { DiagramViewer } from "./diagram-viewer";
+import { DiagramRenderer } from "./diagram-renderer";
 import { Badge } from "@/components/ui/badge";
 import { cleanForDisplay } from "@/lib/clean-question-text";
 import { parseTableWithBlanks } from "@/lib/parse-table-blanks";
@@ -14,6 +15,8 @@ interface QuizQuestionProps {
   diagramUrls: string[];
   /** When true, strip the pipe-table from questionText (interactive table renders separately) */
   hideTable?: boolean;
+  /** Structured figure specs from assessment_items.figures (jsonb). Rendered as inline SVG. */
+  figures?: unknown;
 }
 
 const LONG_PASSAGE_THRESHOLD = 800;
@@ -24,6 +27,7 @@ export function QuizQuestion({
   parentContext,
   diagramUrls,
   hideTable,
+  figures,
 }: QuizQuestionProps) {
   const hasDiagram = diagramUrls.length > 0;
 
@@ -59,6 +63,7 @@ export function QuizQuestion({
 
         {/* Right: question + marks */}
         <div className="space-y-4">
+          <DiagramRenderer figures={figures} />
           <div className="flex items-start justify-between gap-3">
             <RichText
               content={cleaned.questionText}
@@ -90,6 +95,9 @@ export function QuizQuestion({
             />
           </div>
         )}
+
+        {/* Structured figure specs (electron shells, organic structures, ...) */}
+        <DiagramRenderer figures={figures} />
 
         {/* Question */}
         <div className="space-y-3">

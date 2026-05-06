@@ -24,6 +24,8 @@ interface Question {
   parent_context: string | null;
   diagram_urls: string[];
   options: Record<string, string> | null;
+  /** Structured figure specs from assessment_items.figures (jsonb). null for legacy rows. */
+  figures: unknown;
 }
 
 interface Evaluation {
@@ -252,6 +254,7 @@ function QuizSessionInner() {
                   parentContext={question.parent_context}
                   diagramUrls={question.diagram_urls}
                   hideTable={hasTableWithBlanks(question.question_text)}
+                  figures={question.figures}
                 />
 
                 {/* Answer input (hidden during feedback) */}

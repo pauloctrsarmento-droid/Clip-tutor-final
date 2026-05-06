@@ -4,7 +4,12 @@ import { callOpenAI } from "@/lib/openai";
 import { getPrompt } from "@/lib/services/prompts";
 import { createSession, endSession } from "@/lib/services/sessions";
 import { updateTopicMastery, updateFactMastery, updateStreak } from "@/lib/services/mastery";
-import { getQuestionDiagramUrls } from "@/lib/diagrams";
+
+// Quiz serves exclusively the V1 commercial bank (`assessment_items`,
+// status='approved'). Subjects without V1 content (French, EngLit,
+// Português) yield empty quizzes — by design, until V1 is generated.
+// The legacy `exam_questions` table is retained only for Exam Practice
+// and Past Papers; the quiz never reads from it.
 
 /** Extract fact IDs from related_facts (handles both string[] and {fact_id, score}[] formats) */
 function extractFactIds(relatedFacts: unknown): string[] {
@@ -32,6 +37,8 @@ export interface QuizQuestion {
   diagram_urls: string[];
   options: Record<string, string> | null;
   paper_id: string;
+  /** Structured figure specs from assessment_items.figures (jsonb). */
+  figures: unknown;
 }
 
 export interface EvaluationResult {
@@ -58,6 +65,104 @@ export interface QuizSummary {
 }
 
 // ── Start Session ──────────────────────────────────────────────
+
+interface FetchParams {
+  subjectCode: string;
+  topicId?: string;
+  count: number;
+  questionType: string;
+  difficulty?: string;
+  exposedIds: Set<string>;
+  recentIds: Set<string>;
+}
+
+async function fetchApprovedItems(params: FetchParams): Promise<QuizQuestion[]> {
+  const { subjectCode, topicId, count, questionType, difficulty, exposedIds, recentIds } = params;
+
+  let query = supabaseAdmin
+    .from("assessment_items")
+    .select(
+      "id, prompt_text, parent_context, marks, response_type, correct_answer, mark_scheme, mcq_options, figures, syllabus_topic_id, subject_code, difficulty, command_word"
+    )
+    .eq("subject_code", subjectCode)
+    .eq("status", "approved");
+
+  if (topicId) {
+    query = query.eq("syllabus_topic_id", topicId);
+  }
+
+  if (difficulty) {
+    query = query.eq("difficulty", difficulty);
+  }
+
+  if (questionType === "mcq") {
+    query = query.eq("response_type", "mcq");
+  } else if (questionType === "text") {
+    query = query.eq("response_type", "text");
+  } else if (questionType === "numeric") {
+    query = query.eq("response_type", "numeric");
+  } else {
+    query = query.in("response_type", ["mcq", "text", "numeric"]);
+  }
+
+  const { data, error } = await query.limit(count * 4);
+  if (error) throw error;
+
+  const rows = data ?? [];
+  if (rows.length === 0) return [];
+
+  const unseen = rows.filter(
+    (r) => !exposedIds.has(r.id as string) && !recentIds.has(r.id as string)
+  );
+  const pool = unseen.length >= count ? unseen : rows;
+
+  for (let i = pool.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [pool[i], pool[j]] = [pool[j], pool[i]];
+  }
+
+  const selected = pool.slice(0, count);
+
+  return selected.map((q) => {
+    // mcq_options: jsonb array of {letter, text, is_correct} → {A: text, B: text}
+    let options: Record<string, string> | null = null;
+    const rawOptions = q.mcq_options;
+    if ((q.response_type as string) === "mcq" && Array.isArray(rawOptions)) {
+      const parsed: Record<string, string> = {};
+      for (const opt of rawOptions) {
+        if (
+          opt !== null &&
+          typeof opt === "object" &&
+          "letter" in opt &&
+          "text" in opt &&
+          typeof (opt as Record<string, unknown>).letter === "string" &&
+          typeof (opt as Record<string, unknown>).text === "string"
+        ) {
+          const letter = (opt as { letter: string }).letter;
+          const text = (opt as { text: string }).text;
+          parsed[letter] = text;
+        }
+      }
+      if (Object.keys(parsed).length >= 2) options = parsed;
+    }
+
+    return {
+      id: q.id as string,
+      question_text: q.prompt_text as string,
+      marks: q.marks as number,
+      response_type: q.response_type as string,
+      // assessment_items has no question_type; reuse response_type as a sensible default
+      question_type: q.response_type as string,
+      correct_answer: null,
+      mark_scheme: null,
+      parent_context: (q.parent_context as string | null) ?? null,
+      diagram_urls: [],
+      options,
+      paper_id: "",
+      figures: q.figures ?? null,
+    };
+  });
+}
 
 export async function startQuizSession(options: {
   subjectCode: string;
@@ -106,91 +211,14 @@ export async function startQuizSession(options: {
     (recentCorrect ?? []).map((r) => r.question_id as string)
   );
 
-  // Build query
-  let query = supabaseAdmin
-    .from("exam_questions")
-    .select("id, question_text, marks, response_type, question_type, correct_answer, mark_scheme, parent_context, has_diagram, fig_refs, table_refs, paper_id, syllabus_topic_id, subject_code, difficulty")
-    .eq("subject_code", subjectCode)
-    .eq("is_stem", false)
-    .eq("evaluation_ready", true);
-
-  if (topicId) {
-    query = query.eq("syllabus_topic_id", topicId);
-  }
-
-  if (difficulty) {
-    query = query.eq("difficulty", difficulty);
-  }
-
-  if (questionType === "mcq") {
-    query = query.eq("response_type", "mcq");
-  } else if (questionType === "text") {
-    query = query.eq("response_type", "text");
-  } else if (questionType === "numeric") {
-    query = query.eq("response_type", "numeric");
-  } else {
-    // "All Types" — exclude response types that don't work in digital quiz format
-    query = query.in("response_type", ["mcq", "text", "numeric"]);
-  }
-
-  // Fetch more than needed for filtering
-  const { data: allQuestions, error } = await query.limit(count * 4);
-  if (error) throw error;
-
-  // Filter out unanswerable questions (need images we don't have)
-  const available = (allQuestions ?? []).filter((q) => {
-    if (exposedIds.has(q.id as string)) return false;
-    if (recentIds.has(q.id as string)) return false;
-    return isAnswerable(q);
-  });
-  // Fall back: if not enough unseen, allow seen questions but NEVER unanswerable ones
-  const answerable = (allQuestions ?? []).filter((q) => isAnswerable(q));
-  const pool = available.length >= count ? available : answerable;
-
-  // Shuffle
-  for (let i = pool.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [pool[i], pool[j]] = [pool[j], pool[i]];
-  }
-
-  const selected = pool.slice(0, count);
-
-  // Build response with diagram URLs and MCQ options
-  const questions: QuizQuestion[] = selected.map((q) => {
-    const figRefs = (q.fig_refs as string[]) ?? [];
-    const tableRefs = (q.table_refs as string[]) ?? [];
-    const paperId = q.paper_id as string;
-
-    // All questions (Cambridge + SME) resolve diagrams via Supabase Storage
-    const diagramUrls = (q.has_diagram || figRefs.length > 0)
-      ? getQuestionDiagramUrls(paperId, figRefs, tableRefs)
-      : [];
-
-    // Parse MCQ options from mark_scheme
-    let options: Record<string, string> | null = null;
-    if ((q.response_type as string) === "mcq" && q.mark_scheme) {
-      const ms = q.mark_scheme as string;
-      const parsed: Record<string, string> = {};
-      for (const line of ms.split("\n")) {
-        const m = line.match(/^([ABCD]):\s*(.+)/);
-        if (m) parsed[m[1]] = m[2].trim();
-      }
-      if (Object.keys(parsed).length >= 2) options = parsed;
-    }
-
-    return {
-      id: q.id as string,
-      question_text: q.question_text as string,
-      marks: q.marks as number,
-      response_type: q.response_type as string,
-      question_type: q.question_type as string,
-      correct_answer: null, // Don't send to frontend
-      mark_scheme: null, // Don't send to frontend
-      parent_context: q.parent_context as string | null,
-      diagram_urls: diagramUrls,
-      options,
-      paper_id: paperId,
-    };
+  const questions = await fetchApprovedItems({
+    subjectCode,
+    topicId,
+    count,
+    questionType,
+    difficulty,
+    exposedIds,
+    recentIds,
   });
 
   // Record exposure for selected questions
@@ -220,15 +248,21 @@ export async function evaluateAnswer(options: {
 }): Promise<EvaluationResult> {
   const { sessionId, questionId, studentAnswer, studentId, photoUrls } = options;
 
-  // Fetch question + student profile in parallel
-  const [questionRes, studentRes, promptTemplate] = await Promise.all([
-    supabaseAdmin.from("exam_questions").select("*").eq("id", questionId).single(),
+  const [itemRes, studentRes, promptTemplate] = await Promise.all([
+    supabaseAdmin.from("assessment_items").select("*").eq("id", questionId).maybeSingle(),
     supabaseAdmin.from("students").select("tutor_prompt").eq("id", studentId).single(),
     getPrompt("quiz_evaluator"),
   ]);
 
-  const question = questionRes.data;
-  if (!question) throw new Error(`Question ${questionId} not found`);
+  if (!itemRes.data) throw new Error(`Question ${questionId} not found`);
+
+  // Alias prompt_text → question_text for downstream prompt placeholder reuse.
+  const r = itemRes.data as Record<string, unknown>;
+  const question: Record<string, unknown> = {
+    ...r,
+    question_text: r.prompt_text,
+    related_facts: null,
+  };
 
   const subjectCode = question.subject_code as string;
   const languageName = SUBJECT_LANGUAGE[subjectCode] ?? "English";
@@ -255,7 +289,6 @@ export async function evaluateAnswer(options: {
       { id: "C1", description: "Correct formula or method shown (e.g. substitution of values into the correct equation)" },
       { id: "A1", description: "Correct final answer with appropriate units" },
     ];
-    // For 3+ marks, add intermediate steps
     if (marks >= 3) {
       fallbackPoints.splice(1, 0, {
         id: "C2",
@@ -265,7 +298,6 @@ export async function evaluateAnswer(options: {
     markPointsJson = JSON.stringify(fallbackPoints);
   }
 
-  // Build prompt with placeholders
   const system = promptTemplate
     .replace(/\{\{student_profile\}\}/g, (studentRes.data?.tutor_prompt as string) ?? "No profile available")
     .replace(/\{\{subject_name\}\}/g, subjectCode)
@@ -278,7 +310,6 @@ export async function evaluateAnswer(options: {
     .replace(/\{\{language_name\}\}/g, languageName)
     .replace(/\{\{language\}\}/g, languageCode);
 
-  // Call LLM — use vision if student uploaded photos
   const userContent: string | import("@/lib/openai").VisionContentPart[] =
     photoUrls && photoUrls.length > 0
       ? [
@@ -303,7 +334,6 @@ export async function evaluateAnswer(options: {
   try {
     evaluation = JSON.parse(llmResponse) as EvaluationResult;
   } catch {
-    // Fallback for MCQ if JSON parse fails
     if (isMcq && mcqCorrect !== null) {
       evaluation = {
         marks_awarded: mcqCorrect ? 1 : 0,
@@ -325,7 +355,6 @@ export async function evaluateAnswer(options: {
     }
   }
 
-  // For MCQ: override marks and mark_points with auto-check result
   if (isMcq && mcqCorrect !== null) {
     evaluation.marks_awarded = mcqCorrect ? 1 : 0;
     if (evaluation.mark_points?.length > 0) {
@@ -333,7 +362,6 @@ export async function evaluateAnswer(options: {
     }
   }
 
-  // Save attempt
   await supabaseAdmin.from("quiz_attempts").insert({
     student_id: studentId,
     session_id: sessionId,
@@ -343,7 +371,6 @@ export async function evaluateAnswer(options: {
     self_graded: false,
   });
 
-  // Update topic mastery
   const topicId = question.syllabus_topic_id as string | null;
   if (topicId) {
     await updateTopicMastery(
@@ -354,7 +381,6 @@ export async function evaluateAnswer(options: {
     );
   }
 
-  // Update fact mastery for linked facts
   const factIds = extractFactIds(question.related_facts);
   if (factIds.length > 0) {
     const correct = evaluation.marks_awarded > 0;
@@ -394,64 +420,4 @@ export async function endQuizSession(options: {
     accuracy: totalAvailable > 0 ? Math.round((totalEarned / totalAvailable) * 100) : 0,
     duration_seconds: Math.round((endedAt - startedAt) / 1000),
   };
-}
-
-// ── Question Answerability Filter ─────────────────────────────
-
-// Question DEPENDS on seeing an image or hearing audio to answer (EN + FR)
-const NEEDS_IMAGE = /\b(look at the|see the|shown in the|in the diagram|in the figure|the picture shows|the image shows|the graph shows|the table shows|from the graph|from the diagram|from the figure|tick.*box|correct letter|regardez les|cochez.*case|écoutez|crivez la bonne lettre|PAUSE)\b/i;
-
-// Implicit references to external visual data or text passages (EN + FR + PT)
-const IMPLICIT_VISUAL = /\b(the table|the graph|the results|the chart|the apparatus|the circuit|shown below|shown above|results are shown|results are given|data (?:is|are) shown|readings? (?:is|are) shown|values? (?:is|are) shown|in the table|in the graph|from the table|according to the text|in the text|the passage|the extract|re-read|de acordo com o texto|segundo o texto|no texto|o excerto|refere o texto)\b/i;
-
-// References to unnamed substances/elements only identifiable via diagram
-const UNNAMED_REFS = /\b(?:pure|substance|element|liquid|metal|compound|solution|gas|sample) [A-Z]\b/;
-
-// Student must draw/sketch (instructions, not image dependencies)
-const IS_INSTRUCTION = /\b(draw a|sketch a|complete the diagram|label the diagram|plot a graph|dessinez|tracez)\b/i;
-
-// Bare letter options: text has 3+ standalone letters (A\nB\nC) without descriptions
-// This means the options refer to images we don't have
-const BARE_LETTERS = /(?:^|\n)\s*[A-H]\s*(?:\n|$)/gm;
-
-/**
- * Check if a question can be answered without external images.
- * Returns false for questions that reference visual content we don't have.
- */
-function isAnswerable(q: Record<string, unknown>): boolean {
-  const hasImage = (q.has_diagram as boolean) || ((q.fig_refs as string[])?.length ?? 0) > 0;
-  const questionText = (q.question_text as string) ?? "";
-  const parentContext = (q.parent_context as string) ?? "";
-  const fullText = `${questionText} ${parentContext}`;
-  const hasContext = parentContext.length > 20;
-
-  // If question has diagram flag but NO parent context — only trust if fig_refs exist
-  // (diagrams without fig_refs can't be resolved to actual files)
-  if (hasImage && !hasContext) {
-    const figRefs = (q.fig_refs as string[]) ?? [];
-    if (figRefs.length === 0) return false;
-  }
-
-  // Questions with images AND context are answerable
-  if (hasImage && hasContext) return true;
-
-  // Check for explicit image references
-  if (NEEDS_IMAGE.test(fullText) && !IS_INSTRUCTION.test(fullText)) return false;
-
-  // Check for implicit visual references without context
-  if (!hasContext && IMPLICIT_VISUAL.test(fullText)) return false;
-
-  // Check for unnamed substance/element references without context
-  if (!hasContext && UNNAMED_REFS.test(questionText)) return false;
-
-  // Check for bare letter options (A\nB\nC without descriptions) — image matching questions
-  // Skip for language subjects where bare letters are valid comprehension options
-  const LANGUAGE_SUBJECTS = new Set(["0520", "0500", "0475", "0504"]);
-  const subjectCode = (q.subject_code as string) ?? "";
-  if (!LANGUAGE_SUBJECTS.has(subjectCode)) {
-    const bareMatches = questionText.match(BARE_LETTERS);
-    if (bareMatches && bareMatches.length >= 3) return false;
-  }
-
-  return true;
 }
