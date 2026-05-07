@@ -23,7 +23,7 @@ export function ElectronShellDiagram({ spec }: ElectronShellDiagramProps) {
   const angleOffset = -Math.PI / 2;
 
   return (
-    <svg viewBox={`0 0 ${canvas} ${canvas}`} className="max-w-md w-full mx-auto block">
+    <svg viewBox={`0 0 ${canvas} ${canvas}`} className="max-w-md w-full mx-auto block bg-white rounded-md p-2">
       <circle cx={cx} cy={cy} r={nucleusR} fill="#fef3c7" stroke="#92400e" strokeWidth={2} />
       {show_label && element && (
         <text
