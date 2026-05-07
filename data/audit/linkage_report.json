@@ -1,0 +1,17 @@
+{
+  "run_at": "2026-05-07T00:00:00Z",
+  "total_questions": 6004,
+  "applied": 6004,
+  "sonnet_failed": 0,
+  "opus_failed": 0,
+  "needs_human_review": 233,
+  "new_atomic_facts_created": 878,
+  "total_active_atomic_facts": 2833,
+  "agreement_signal": {"high": 4893, "medium": 828, "low": 283},
+  "gate_a": "passed",
+  "gate_k": "passed",
+  "gate_b": "passed",
+  "gate_c_sample_size": 20,
+  "gate_c_defensible": 18,
+  "notes": "233 questions used a Sonnet-fallback (Opus left both arrays empty); these are flagged with agreement_signal=low for QA. Migration 2 element-type clause was relaxed (CHECK can't hold subqueries) — element-type validation is now only via the existence trigger."
+}
