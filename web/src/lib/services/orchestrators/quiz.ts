@@ -335,8 +335,8 @@ export async function evaluateAnswer(options: {
   } catch {
     if (isMcq && mcqCorrect !== null) {
       evaluation = {
-        marks_awarded: mcqCorrect ? 1 : 0,
-        marks_available: 1,
+        marks_awarded: mcqCorrect ? marks : 0,
+        marks_available: marks,
         mark_points: [{ id: "M1", description: `Answer: ${question.correct_answer}`, awarded: mcqCorrect, feedback: mcqCorrect ? "Correct!" : `The correct answer is ${question.correct_answer}.` }],
         overall_feedback: llmResponse,
         exam_tip: "",
@@ -354,8 +354,11 @@ export async function evaluateAnswer(options: {
     }
   }
 
+  // MCQ is all-or-nothing: full marks for the right letter, zero otherwise.
+  // Don't trust the LLM's marks_awarded for MCQ — auto-check is the source of truth.
   if (isMcq && mcqCorrect !== null) {
-    evaluation.marks_awarded = mcqCorrect ? 1 : 0;
+    evaluation.marks_awarded = mcqCorrect ? marks : 0;
+    evaluation.marks_available = marks;
     if (evaluation.mark_points?.length > 0) {
       evaluation.mark_points[0].awarded = mcqCorrect;
     }
