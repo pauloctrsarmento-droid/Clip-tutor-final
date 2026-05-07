@@ -31,7 +31,7 @@ export const MAX_SUGGESTIONS = 5;
 export const OPENAI_MODEL = "gpt-4o";
 
 /** The 6 IGCSE study subjects (excludes English Lit 0475, English Lang 0500) */
-export const STUDY_SUBJECTS: string[] = ["0620", "0625", "0610", "0478", "0520", "0504"];
+export const STUDY_SUBJECTS: string[] = ["0620", "0625", "0610", "0478", "0500", "0520", "0504"];
 
 /** Subjects with no exam questions — quiz disabled, only flashcards + past papers */
 export const QUIZ_DISABLED_SUBJECTS = new Set(["0520", "0504", "0475"]);
