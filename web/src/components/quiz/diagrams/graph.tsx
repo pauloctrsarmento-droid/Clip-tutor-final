@@ -27,7 +27,7 @@ export function GraphDiagram({ spec }: GraphDiagramProps) {
   if (spec.rendered_svg) {
     return (
       <div
-        className="max-w-xl w-full"
+        className="max-w-xl w-full mx-auto [&>svg]:w-full [&>svg]:h-auto"
         dangerouslySetInnerHTML={{ __html: spec.rendered_svg }}
       />
     );

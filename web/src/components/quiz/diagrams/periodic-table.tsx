@@ -17,7 +17,7 @@ export function PeriodicTableDiagram({ spec }: PeriodicTableDiagramProps) {
   if (spec.rendered_svg) {
     return (
       <div
-        className="max-w-2xl w-full overflow-x-auto"
+        className="max-w-2xl w-full mx-auto overflow-x-auto [&>svg]:w-full [&>svg]:h-auto"
         dangerouslySetInnerHTML={{ __html: spec.rendered_svg }}
       />
     );

@@ -17,7 +17,7 @@ export function OrganicStructureDiagram({ spec }: OrganicStructureDiagramProps) 
     // The SVG is generated server-side by RDKit (trusted source).
     return (
       <div
-        className="max-w-sm w-full"
+        className="max-w-lg w-full mx-auto [&>svg]:w-full [&>svg]:h-auto"
         dangerouslySetInnerHTML={{ __html: spec.rendered_svg }}
       />
     );

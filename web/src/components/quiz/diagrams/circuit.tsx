@@ -22,7 +22,7 @@ export function CircuitDiagram({ spec }: CircuitDiagramProps) {
   if (spec.rendered_svg) {
     return (
       <div
-        className="max-w-md w-full"
+        className="max-w-lg w-full mx-auto [&>svg]:w-full [&>svg]:h-auto"
         dangerouslySetInnerHTML={{ __html: spec.rendered_svg }}
       />
     );
