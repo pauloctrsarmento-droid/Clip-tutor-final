@@ -82,7 +82,7 @@ async function fetchApprovedItems(params: FetchParams): Promise<QuizQuestion[]> 
   let query = supabaseAdmin
     .from("assessment_items")
     .select(
-      "id, prompt_text, parent_context, marks, response_type, correct_answer, mark_scheme, mcq_options, figures, syllabus_topic_id, subject_code, difficulty, command_word"
+      "id, prompt_text, parent_context, marks, response_type, correct_answer, mark_scheme, mcq_options, figures, syllabus_topic_id, subject_code, difficulty, command_word, related_facts"
     )
     .eq("subject_code", subjectCode)
     .eq("status", "approved");
@@ -261,7 +261,6 @@ export async function evaluateAnswer(options: {
   const question: Record<string, unknown> = {
     ...r,
     question_text: r.prompt_text,
-    related_facts: null,
   };
 
   const subjectCode = question.subject_code as string;
@@ -381,8 +380,15 @@ export async function evaluateAnswer(options: {
     );
   }
 
+  // Skip fact-mastery updates for low-confidence linkages: the Opus reviewer
+  // marked agreement_signal='low' (or the row is a Sonnet fallback we tagged
+  // 'low' post-hoc). Topic mastery still updates from these — the question is
+  // a valid practice item, but its fact-level signal is too weak to feed the
+  // flashcard SR algorithm without QA.
+  const linkageAudit = question.linkage_audit as { agreement_signal?: string } | null;
+  const lowAgreement = linkageAudit?.agreement_signal === "low";
   const factIds = extractFactIds(question.related_facts);
-  if (factIds.length > 0) {
+  if (factIds.length > 0 && !lowAgreement) {
     const correct = evaluation.marks_awarded > 0;
     await Promise.all(
       factIds.map((factId) => updateFactMastery(factId, correct, studentId).catch(() => {}))

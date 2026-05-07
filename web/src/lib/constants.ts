@@ -34,7 +34,7 @@ export const OPENAI_MODEL = "gpt-4o";
 export const STUDY_SUBJECTS: string[] = ["0620", "0625", "0610", "0478", "0520", "0504"];
 
 /** Subjects with no exam questions — quiz disabled, only flashcards + past papers */
-export const QUIZ_DISABLED_SUBJECTS = new Set(["0520", "0504", "0500", "0475"]);
+export const QUIZ_DISABLED_SUBJECTS = new Set(["0520", "0504", "0475"]);
 
 /** Subject language mapping for prompt localisation */
 export const SUBJECT_LANGUAGE: Record<string, string> = {

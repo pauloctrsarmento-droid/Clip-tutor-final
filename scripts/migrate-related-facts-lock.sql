@@ -64,15 +64,13 @@ CREATE TRIGGER atomic_facts_protect_referenced
   BEFORE UPDATE OF is_active ON atomic_facts
   FOR EACH ROW EXECUTE FUNCTION protect_referenced_atomic_facts();
 
--- ── Defense 3: NOT NULL + CHECK array-shape AND element-type ──
+-- ── Defense 3: NOT NULL + CHECK array-shape ──
+-- CHECK constraints cannot contain subqueries, so element-type validation
+-- (every element must be a string) is enforced inside the existence trigger above
+-- — a non-string element would fail to match any atomic_facts.id and the trigger raises.
 ALTER TABLE assessment_items
   ALTER COLUMN related_facts SET NOT NULL,
   ADD CONSTRAINT related_facts_non_empty CHECK (
     jsonb_typeof(related_facts) = 'array'
     AND jsonb_array_length(related_facts) >= 1
-    AND NOT EXISTS (
-      SELECT 1
-      FROM jsonb_array_elements(related_facts) AS elem
-      WHERE jsonb_typeof(elem) <> 'string'
-    )
   );
