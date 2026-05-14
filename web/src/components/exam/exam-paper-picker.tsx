@@ -40,6 +40,7 @@ function formatComponentType(ct: string): string {
     theory_extended: "Theory (Extended)",
     theory_core: "Theory (Core)",
     theory: "Theory",
+    mc_extended: "MCQ (Extended)",
     atp: "Alternative to Practical",
     alternative_to_practical: "Alternative to Practical",
     practical: "Practical",
@@ -85,7 +86,9 @@ export function ExamPaperPicker({ onSelect, initialSubjectCode, initialComponent
     try {
       const data = (await fetchExamPapers(code)) as ExamPaper[];
       let filtered = data.filter(
-        (p) => !p.component_type || !EXCLUDED_TYPES.includes(p.component_type)
+        (p) =>
+          p.variant !== "00" &&
+          (!p.component_type || !EXCLUDED_TYPES.includes(p.component_type))
       );
       if (initialComponentFilter) {
         filtered = filtered.filter(
